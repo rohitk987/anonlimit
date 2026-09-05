@@ -51,3 +51,8 @@ export const actionFaults = actionSchema.table(
     ),
   ]
 );
+
+export const resetDemoRuns = actionSchema.table("reset_demo_runs", {
+  demoRunId: uuid("demo_run_id").primaryKey(),
+  resetAt: timestamp("reset_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+});

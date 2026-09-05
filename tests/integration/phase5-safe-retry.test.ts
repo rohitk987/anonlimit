@@ -110,6 +110,7 @@ describe.sequential("Phase 5 lost acknowledgement and exact retry", () => {
         LOG_LEVEL: "silent",
         ACTION_PORT: "4100",
         DATABASE_URL_ACTION: database.connectionStringFor("action_service"),
+        DEMO_MODE: "true",
         ACTION_SERVICE_TOKEN: TOKEN,
       }),
       actionDatabase

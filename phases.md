@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–5 complete; G5 passed; Phase 6 is next |
+| Status | Phases 0–6 complete; G6 Backend P0 passed; Phase 7 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -712,23 +712,23 @@ Complete the required headless P0 protocol: three distinct uses succeed, the los
 
 ### Tasks
 
-- [ ] Support all three valid hidden slots.
-- [ ] Add a controlled out-of-range fourth-slot attempt.
-- [ ] Return public PRESENTATION_REJECTED.
-- [ ] Allow BOUND_EXCEEDED only as a private demo diagnostic.
-- [ ] Reject invalid policy, audience, quota window, challenge, and proof.
-- [ ] Reject conflicting reuse without altering the original use.
-- [ ] Implement reset scoped to one demo run.
-- [ ] Reset verifier and Action Simulator state through owned APIs.
-- [ ] Never drop schemas or truncate unrelated data.
-- [ ] Create one reusable headless golden scenario.
-- [ ] Add backend assertions after every scenario step.
+- [x] Support all three valid hidden slots.
+- [x] Add a controlled out-of-range fourth-slot attempt.
+- [x] Return public PRESENTATION_REJECTED.
+- [x] Allow BOUND_EXCEEDED only as a private demo diagnostic.
+- [x] Reject invalid policy, audience, quota window, challenge, and proof.
+- [x] Reject conflicting reuse without altering the original use.
+- [x] Implement reset scoped to one demo run.
+- [x] Reset verifier and Action Simulator state through owned APIs.
+- [x] Never drop schemas or truncate unrelated data.
+- [x] Create one reusable headless golden scenario.
+- [x] Add backend assertions after every scenario step.
 
 ### Key files
 
 ```text
-apps/api/src/modules/presentations/submit-presentation.ts
-apps/api/src/modules/presentations/resolve-existing-use.ts
+apps/api/src/modules/protocol/protocol-service.ts
+apps/api/src/modules/protocol/protocol-routes.ts
 apps/api/src/modules/demo/reset-demo.ts
 apps/action-simulator/src/routes/demo.routes.ts
 
@@ -774,7 +774,7 @@ over_limit_mutations                 = 0
 all_receipts_stable                  = true
 ```
 
-Run the core headless scenario repeatedly. Any intermittent result blocks the next phase.
+The core headless scenario passed repeatedly. Phase 7 — authoritative evidence and privacy — is next.
 
 ### Stop condition
 
@@ -1468,7 +1468,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 3. Durable acceptance | G3 | [x] |
 | 4. First complete use | G4 | [x] |
 | 5. Safe retry | G5 | [x] |
-| 6. Bound and rejection | G6 | [ ] |
+| 6. Bound and rejection | G6 | [x] |
 | 7. Evidence and privacy | G7 | [ ] |
 | 8. Judge experience | G8 — P0 lock | [ ] |
 | 9. P1 resilience | G9 — optional | [ ] |

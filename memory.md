@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-05 (Asia/Calcutta).
 Project root: `D:/myonsite`.
-Current milestone: **Phases 0–5 complete; G5 Retry safety passed. Phase 6 is next.**
+Current milestone: **Phases 0–6 complete; G6 Backend P0 passed. Phase 7 is next.**
 Git branch: `codex/phase-2-protocol`. Phase 5 is committed at `d3303db` (`feat: complete phase 5 safe retry`); this memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
@@ -31,13 +31,13 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | 3     | Durable acceptance            | Complete; G3 passed                            |
 | 4     | First complete use            | Complete; G4 passed                            |
 | 5     | Safe retry                    | Complete; G5 passed                            |
-| 6     | Bound and rejection           | Not started                                    |
+| 6     | Bound and rejection           | Complete; G6 Backend P0 passed                 |
 | 7     | Evidence and privacy          | Not started                                    |
 | 8     | Judge experience / P0 lock    | Not started                                    |
 | 9     | P1 resilience                 | Deferred until G8; required for full project   |
 | 10    | Release and rehearsal         | Not started                                    |
 
-Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 6 is the next implementation slice.
+Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 7 is the next implementation slice.
 
 ## Implemented system
 
@@ -64,20 +64,31 @@ Codex is the integration owner. Responsibilities and dependencies are in [the ta
 
 Detailed Phase 5 behavior and evidence: [Phase 5 record](docs/phase-5-safe-retry.md).
 
+## Phase 6 exact bound, rejection, and reset
+
+- The simulated issuer seals each hidden slot index in the provider ticket. The normal credential still has exactly three slots; the test-only `createSimulatedBoundTestAdapter` can build an authenticated boundary slot at index 3.
+- The demo-enabled verifier returns the private in-memory diagnostic `BOUND_EXCEEDED` only after authenticating that sealed ticket. The protocol service and public error schema always return `PRESENTATION_REJECTED`, with zero deltas and no persisted proof, slot, credential, or raw nullifier.
+- `POST /v1/demo/reset` accepts exactly `{}` and selects the active run on the server. It fences the selected Action Simulator run through the bearer-protected internal reset API, deletes only the selected verifier run’s challenges, uses, outbox rows, events, and fault target, then inserts a fresh active run and `DEMO_RESET` event.
+- The Action Simulator stores a run tombstone under a PostgreSQL advisory lock, deletes that run’s action results, and rejects later commits for the tombstoned run with `DEMO_RUN_RESET`. Replaying its reset returns the original timestamp and does not affect other runs.
+- The browser reset calls the server first and clears the credential and operations IndexedDB stores only after the response passes `demoResetResponseSchema`. Failed reset or storage operations leave the local wallet intact.
+- `packages/testing/src/scenarios/golden-scenario.ts` is transport-neutral and asserts backend counts after every step. The real Phase 6 integration runs it twice with deterministic clock/UUID/randomness, durable lost-ack delivery, the controlled boundary proof, and an unrelated sentinel run.
+- Phase 6 evidence is recorded in [the Phase 6 record](docs/phase-6-bound-reset.md). G6 passed: declared limit 3, three accepted uses, three committed actions, zero retry deltas, zero over-limit mutations, and stable receipts.
+
 ## Verification observed on 2026-09-05
 
-| Check                     | Result                                                                                                                  |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Node / pnpm               | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                  |
-| Docker / Compose          | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                            |
-| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration and seed exited 0                                 |
-| `pnpm check:phase5`       | Passed formatting, lint, strict type checks, builds, 285 unit, 8 contract, 24 focused integration, and 24 privacy tests |
-| `pnpm test:integration`   | 26 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                           |
-| `pnpm test:e2e`           | 3 passed: durable lost-ack recovery, stored resend as first arrival, and expired-unaccepted proof rebuild               |
-| Existing-volume migration | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                  |
-| Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned           |
-| Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                 |
-| Hosted CI                 | Workflow updated to `check:phase5`; hosted execution has not been observed                                              |
+| Check                     | Result                                                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Node / pnpm               | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                     |
+| Docker / Compose          | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                               |
+| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration and seed exited 0                                    |
+| `pnpm check:phase6`       | Passed formatting, lint, strict type checks, builds, 292 unit, 9 contract, 33 cumulative integration, and 24 privacy tests |
+| `pnpm test:integration`   | 26 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                              |
+| `pnpm test:e2e`           | 3 passed: durable lost-ack recovery, stored resend as first arrival, and expired-unaccepted proof rebuild                  |
+| Existing-volume migration | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                     |
+| Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned              |
+| Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                    |
+| Phase 6 golden scenario   | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                   |
+| Hosted CI                 | Workflow still targets the previous phase; hosted execution has not been observed                                          |
 
 The immutable verifier migration digests in the persistent database are:
 
@@ -88,7 +99,7 @@ The immutable verifier migration digests in the persistent database are:
 
 `0003` was first applied with a trailing blank line. Its bytes are intentionally preserved, and `.gitattributes` disables only Git's blank-at-EOF warning for that immutable file.
 
-G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. It does not yet certify all three uses, the fourth-use rejection, reset, final evidence, or release behavior.
+G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. G6 now certifies all three uses, the fourth-use rejection, and the server-owned reset; authoritative evidence and release behavior remain later phases.
 
 ## Local setup and Docker recovery
 
@@ -109,7 +120,7 @@ Use the existing `.env` with its existing PostgreSQL volume. Initial role/passwo
 pnpm install --frozen-lockfile
 docker compose build api
 docker compose up -d --no-build --wait --wait-timeout 120
-pnpm check:phase5
+pnpm check:phase6
 pnpm test:integration
 pnpm test:e2e
 ```
@@ -126,22 +137,22 @@ TypeScript 6.0.3 and Vitest 4.1.11 are deliberate compatibility pins. Keep stric
 
 ## Next step
 
-Continue with **Phase 6 — exact bound, rejection, and reset** from [phases.md](phases.md):
+Continue with **Phase 7 — authoritative evidence and privacy** from [phases.md](phases.md):
 
-1. Run all three valid hidden slots from one credential and prove three durable uses/actions/receipts.
-2. Attempt hidden slot index 3 and prove the fourth attempt changes no use, outbox, action, receipt, or challenge state.
-3. Add a demo-run-scoped reset through owned verifier and Action Simulator APIs without dropping schemas or truncating unrelated data.
-4. Build one reusable headless golden scenario with backend assertions after every step and pass G6.
+1. Add sanitized verifier evidence and Action Simulator evidence queries.
+2. Build the invariant report from authoritative backend state.
+3. Extend privacy scans across rows, events, exports, API responses, and bundles.
 
 ## Recent milestones
 
-| Date       | Milestone                                     | Outcome                                |
-| ---------- | --------------------------------------------- | -------------------------------------- |
-| 2026-09-05 | Phase 5 safe retry implemented and verified   | G5 passed; Phase 6 next                |
-| 2026-09-05 | Docker low-disk/startup incident repaired     | Engine and Compose stack healthy       |
-| 2026-09-05 | Phase 4 first complete use implemented        | G4 passed                              |
-| 2026-09-05 | Phase 3 durable acceptance implemented        | G3 passed                              |
-| 2026-09-05 | Phase 2 protocol kernel implemented           | G2 passed                              |
-| 2026-09-05 | Phase 1 runtime foundation implemented        | G1 passed                              |
-| 2026-09-05 | Memory and AI continuity instructions created | Future sessions maintain current state |
-| 2026-09-05 | Scope, ownership, and source alignment locked | Eleven-phase plan established          |
+| Date       | Milestone                                       | Outcome                                |
+| ---------- | ----------------------------------------------- | -------------------------------------- |
+| 2026-09-05 | Phase 6 bound, rejection, and reset implemented | G6 Backend P0 passed                   |
+| 2026-09-05 | Phase 5 safe retry implemented and verified     | G5 passed; Phase 6 next                |
+| 2026-09-05 | Docker low-disk/startup incident repaired       | Engine and Compose stack healthy       |
+| 2026-09-05 | Phase 4 first complete use implemented          | G4 passed                              |
+| 2026-09-05 | Phase 3 durable acceptance implemented          | G3 passed                              |
+| 2026-09-05 | Phase 2 protocol kernel implemented             | G2 passed                              |
+| 2026-09-05 | Phase 1 runtime foundation implemented          | G1 passed                              |
+| 2026-09-05 | Memory and AI continuity instructions created   | Future sessions maintain current state |
+| 2026-09-05 | Scope, ownership, and source alignment locked   | Eleven-phase plan established          |

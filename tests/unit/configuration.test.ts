@@ -36,7 +36,7 @@ describe("server configuration fails closed", () => {
   it("parses false as false and bounded integers as numbers", () => {
     expect(parseApiEnv(valid)).toMatchObject({ demoMode: false, port: 4000, nodeEnv: "test" });
     expect(parseWorkerEnv(valid).outboxPollMs).toBe(1000);
-    expect(parseActionEnv(valid).port).toBe(4100);
+    expect(parseActionEnv(valid)).toMatchObject({ demoMode: false, port: 4100 });
     expect(parseMigrationEnv(valid)).toEqual({
       databaseUrl: valid.DATABASE_URL_MIGRATION,
       rolePasswords: {
@@ -75,6 +75,12 @@ describe("server configuration fails closed", () => {
   });
   it.each(["1", "False", "yes", ""])("rejects ambiguous boolean %s", (value) => {
     expect(() => parseApiEnv({ ...valid, DEMO_MODE: value })).toThrow("CONFIGURATION_INVALID");
+  });
+  it("requires an unambiguous Action Simulator demo-mode flag", () => {
+    expect(() => parseActionEnv({ ...valid, DEMO_MODE: undefined })).toThrow(
+      "CONFIGURATION_INVALID"
+    );
+    expect(() => parseActionEnv({ ...valid, DEMO_MODE: "False" })).toThrow("CONFIGURATION_INVALID");
   });
   it("rejects unsafe URLs, placeholder secrets, and out-of-range polling", () => {
     expect(() =>

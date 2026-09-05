@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 import {
+  internalDemoResetRequestSchema,
+  internalDemoResetResponseSchema,
   internalActionRequestSchema,
   internalActionResponseSchema,
   receiptSchema,
   type InternalActionRequest,
   type InternalActionResponse,
+  type InternalDemoResetRequest,
+  type InternalDemoResetResponse,
 } from "@anonlimit/contracts";
 import { createConnectionLifecycle, createPool } from "./connection.js";
 
@@ -22,6 +26,13 @@ export class ActionDatabaseInconsistentError extends Error {
   }
 }
 
+export class ActionDemoRunResetError extends Error {
+  constructor() {
+    super("DEMO_RUN_RESET");
+    this.name = "ActionDemoRunResetError";
+  }
+}
+
 interface ActionResultRow {
   readonly action_key: string;
   readonly demo_run_id: string;
@@ -29,10 +40,16 @@ interface ActionResultRow {
   readonly receipt: unknown;
 }
 
+interface ResetDemoRunRow {
+  readonly demo_run_id: string;
+  readonly reset_at: Date | string;
+}
+
 export interface ActionDatabase {
   check(): Promise<void>;
   close(): Promise<void>;
   commitAction(request: InternalActionRequest): Promise<InternalActionResponse>;
+  resetDemoRun(request: InternalDemoResetRequest): Promise<InternalDemoResetResponse>;
   getEvidence?(): Promise<{
     readonly externalActions: number;
     readonly receipts: readonly ReturnType<typeof receiptSchema.parse>[];
@@ -66,6 +83,15 @@ export function createActionDatabase(connectionString: string): ActionDatabase {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 170026::bigint))",
+        [request.demoRunId]
+      );
+      const resetRun = await client.query(
+        "SELECT 1 FROM action_sim.reset_demo_runs WHERE demo_run_id = $1",
+        [request.demoRunId]
+      );
+      if (resetRun.rowCount !== 0) throw new ActionDemoRunResetError();
       const existing = await client.query<ActionResultRow>(
         `SELECT action_key, demo_run_id, payload_digest, receipt
          FROM action_sim.action_results WHERE action_key = $1 FOR UPDATE`,
@@ -118,6 +144,52 @@ export function createActionDatabase(connectionString: string): ActionDatabase {
     }
   };
 
+  const resetDemoRun = async (
+    rawRequest: InternalDemoResetRequest
+  ): Promise<InternalDemoResetResponse> => {
+    const request = internalDemoResetRequestSchema.parse(rawRequest);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 170026::bigint))",
+        [request.demoRunId]
+      );
+      await client.query(
+        `INSERT INTO action_sim.reset_demo_runs (demo_run_id)
+         VALUES ($1)
+         ON CONFLICT (demo_run_id) DO NOTHING`,
+        [request.demoRunId]
+      );
+      await client.query("DELETE FROM action_sim.action_results WHERE demo_run_id = $1", [
+        request.demoRunId,
+      ]);
+      const result = await client.query<ResetDemoRunRow>(
+        `SELECT demo_run_id, reset_at
+         FROM action_sim.reset_demo_runs
+         WHERE demo_run_id = $1`,
+        [request.demoRunId]
+      );
+      const row = result.rows[0];
+      if (!row) throw new ActionDatabaseInconsistentError();
+      const resetAt =
+        row.reset_at instanceof Date
+          ? row.reset_at.toISOString()
+          : new Date(row.reset_at).toISOString();
+      const response = internalDemoResetResponseSchema.parse({
+        demoRunId: row.demo_run_id,
+        resetAt,
+      });
+      await client.query("COMMIT");
+      return response;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
   const getEvidence = async () => {
     const result = await pool.query<ActionResultRow>(
       `SELECT action_key, demo_run_id, payload_digest, receipt
@@ -131,5 +203,5 @@ export function createActionDatabase(connectionString: string): ActionDatabase {
     return { externalActions: receipts.length, receipts };
   };
 
-  return { ...lifecycle, commitAction, getEvidence };
+  return { ...lifecycle, commitAction, resetDemoRun, getEvidence };
 }

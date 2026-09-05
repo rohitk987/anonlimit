@@ -29,6 +29,11 @@ export interface SimulatorOptions {
   now?: () => number;
 }
 
+export interface VerifierOptions extends SimulatorOptions {
+  /** Enables a private demo-only reason while the public API still returns PRESENTATION_REJECTED. */
+  demoMode?: boolean;
+}
+
 export interface IssuerPublicParameters {
   provider: "SIMULATED_CAPABILITIES_V1";
   issuerKeyId: string;
@@ -47,7 +52,10 @@ export interface VerificationInput {
 
 export type VerificationResult =
   | { valid: true; diagnosticCode: "VERIFIED" }
-  | { valid: false; diagnosticCode: "PRESENTATION_REJECTED" };
+  | {
+      valid: false;
+      diagnosticCode: "PRESENTATION_REJECTED" | "BOUND_EXCEEDED";
+    };
 
 export const publicParametersSchema = z.strictObject({
   provider: z.literal("SIMULATED_CAPABILITIES_V1"),
@@ -59,6 +67,8 @@ export const capabilitySchema = z.strictObject({
   scope: z.string().min(1).max(4096),
   policyDigest: digestSchema,
   demoRunId: uuidSchema,
+  /** Encrypted provider claim. It is never copied into a public proof field. */
+  slotIndex: z.number().int().nonnegative().max(1_000_000),
   nullifier: hex64Schema,
   authenticationKey: hex64Schema,
 });
@@ -109,7 +119,11 @@ export function serverCipher(options: SimulatorOptions) {
 }
 
 /** Private provider helper. Only the audit adapter may omit live time checks. */
-export function createBindingVerifier(options: SimulatorOptions, checkFreshness: boolean) {
+export function createBindingVerifier(
+  options: VerifierOptions,
+  checkFreshness: boolean,
+  allowBoundDiagnostic = options.demoMode === true
+) {
   const cipher = serverCipher(options);
   const keyId = options.issuerKeyId;
   const now = options.now ?? Date.now;
@@ -176,9 +190,13 @@ export function createBindingVerifier(options: SimulatorOptions, checkFreshness:
         }),
         proof.authenticator
       );
-      return valid
-        ? { valid: true, diagnosticCode: "VERIFIED" }
-        : { valid: false, diagnosticCode: "PRESENTATION_REJECTED" };
+      if (!valid) return { valid: false, diagnosticCode: "PRESENTATION_REJECTED" };
+      if (claims.slotIndex >= policy.maxUses)
+        return {
+          valid: false,
+          diagnosticCode: allowBoundDiagnostic ? "BOUND_EXCEEDED" : "PRESENTATION_REJECTED",
+        };
+      return { valid: true, diagnosticCode: "VERIFIED" };
     } catch {
       return { valid: false, diagnosticCode: "PRESENTATION_REJECTED" };
     }

@@ -17,7 +17,7 @@ const REQUIRED_VERIFIER_TABLES = [
   "use_records",
   "verification_challenges",
 ] as const;
-const REQUIRED_ACTION_TABLES = ["action_faults", "action_results"] as const;
+const REQUIRED_ACTION_TABLES = ["action_faults", "action_results", "reset_demo_runs"] as const;
 
 function prohibitedColumns(columns: readonly SchemaColumn[]): string[] {
   return columns.flatMap(({ table_name: table, column_name: column }) => {

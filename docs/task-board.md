@@ -8,7 +8,7 @@
 | Phase 3 — database foundation and durable acceptance | G2                      | G3 Durable acceptance                       | Complete: durable HTTP acceptance, transactional outbox, migrations, privacy, and race checks passed   | Codex protocol + data lanes       |
 | Phase 4 — first complete end-to-end use              | G3                      | G4 One-use milestone                        | Complete: one browser use reached one durable external receipt; action and worker idempotency verified | Codex data + wallet lanes         |
 | Phase 5 — lost acknowledgement and exact retry       | G4                      | G5 Retry safety                             | Complete: durable lost-ack fault and byte-identical exact retry passed with zero extra deltas          | Codex protocol + wallet lanes     |
-| Phase 6 — exact bound, rejection, and reset          | G5                      | G6 Backend P0                               | Not started                                                                                            | Codex protocol/API lane           |
+| Phase 6 — exact bound, rejection, and reset          | G5                      | G6 Backend P0                               | Complete: three uses, safe retry, fourth rejection, and scoped reset passed                            | Codex protocol/API lane           |
 | Phase 7 — authoritative evidence and privacy         | G6                      | G7 Evidence P0                              | Not started                                                                                            | Codex QA/privacy lane             |
 | Phase 8 — guided judge experience and P0 lock        | G7                      | G8 P0 lock                                  | Not started                                                                                            | Codex wallet/UI + QA lanes        |
 | Phase 9 — optional concurrency and crash recovery    | G8                      | G9 Full resilience                          | Deferred until P0 is stable; required for full project                                                 | Codex data/reliability + QA lanes |
@@ -18,12 +18,12 @@ The integration captain owns root configuration and gate results. These lanes ar
 
 See [Phase 0 kickoff](phase-0-kickoff.md) for the default policy, golden scenario, setup commands, source decisions, and actual readiness evidence. Completion of a planning row does not certify later product behavior.
 
-## Next phase handoff
+## Phase 6 result
 
-Phase 5 is complete. See [the Phase 5 record](phase-5-safe-retry.md) for the durable fault boundary, exact request recovery, and G5 evidence. The next implementation phase is **Phase 6 — exact bound, rejection, and reset**.
+Phase 6 is complete. See [the Phase 6 record](phase-6-bound-reset.md) for the run-scoped reset, controlled boundary proof, and G6 evidence. The next implementation phase is **Phase 7 — authoritative evidence and privacy**.
 
-1. Complete three distinct uses from the one fixed three-slot credential.
-2. Reject hidden slot index 3 (the fourth attempt) without changing use, outbox, action, receipt, or challenge state.
-3. Add bounded demo reset that invalidates prior-run credentials and clears only the selected scenario.
+1. Add sanitized verifier evidence and Action Simulator evidence queries.
+2. Build the invariant report from authoritative backend state.
+3. Run the required privacy scans over rows, events, exports, API responses, and bundles.
 
-Authoritative evidence and the guided judge flow remain later phases.
+The guided judge flow remains Phase 8.

@@ -4,3 +4,5 @@ export function createFixedClock(iso: string): () => Date {
   if (!Number.isFinite(timestamp)) throw new Error("Invalid fixed clock.");
   return () => new Date(timestamp);
 }
+
+export * from "./scenarios/golden-scenario.js";

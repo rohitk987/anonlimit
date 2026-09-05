@@ -120,6 +120,24 @@ export async function saveCredential(record: WalletCredentialRecord): Promise<vo
   }
 }
 
+/**
+ * Removes this browser's wallet only after the server has replaced the active demo run. Both
+ * stores clear in one IndexedDB transaction, so a storage failure leaves the credential and its
+ * saved operation available for a retry rather than clearing only part of the wallet.
+ */
+export async function clearWalletAfterDemoReset(): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction([CREDENTIALS_STORE, OPERATIONS_STORE], "readwrite");
+    const completed = transactionResult(transaction);
+    transaction.objectStore(CREDENTIALS_STORE).clear();
+    transaction.objectStore(OPERATIONS_STORE).clear();
+    await completed;
+  } finally {
+    database.close();
+  }
+}
+
 /** Prevents two first-load tabs from replacing each other's newly issued local credential. */
 export async function saveCredentialIfAbsent(record: WalletCredentialRecord): Promise<boolean> {
   const database = await openDatabase();

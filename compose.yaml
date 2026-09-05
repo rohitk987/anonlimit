@@ -90,6 +90,7 @@ services:
       <<: *logging
       ACTION_PORT: "4100"
       DATABASE_URL_ACTION: ${DATABASE_URL_ACTION:?Required}
+      DEMO_MODE: ${DEMO_MODE:?Required}
       ACTION_SERVICE_TOKEN: ${ACTION_SERVICE_TOKEN:?Required}
     healthcheck:
       test:

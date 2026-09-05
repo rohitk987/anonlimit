@@ -13,6 +13,8 @@
     "setup:env": "tsx scripts/setup-local-env.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed-default-policy.ts",
+    "demo:reset": "tsx scripts/reset-demo.ts",
+    "demo:golden": "tsx scripts/run-golden.ts",
     "build": "pnpm build:packages && pnpm --filter \"./apps/*\" --recursive --sort --workspace-concurrency=1 run build",
     "build:packages": "pnpm --filter \"./packages/*\" --recursive --sort --workspace-concurrency=1 run build",
     "typecheck": "pnpm build:packages && pnpm --recursive --sort --workspace-concurrency=1 run typecheck && tsc -p tsconfig.tooling.json",
@@ -27,6 +29,7 @@
     "test:integration:phase3": "vitest run --project integration tests/integration/phase3-database.test.ts tests/integration/presentation-flow.test.ts",
     "test:integration:phase4": "vitest run --project integration tests/integration/action-idempotency.test.ts tests/integration/phase4-worker.test.ts",
     "test:integration:phase5": "vitest run --project integration tests/integration/phase5-safe-retry.test.ts",
+    "test:integration:phase6": "vitest run --project integration tests/integration/phase6-golden-scenario.test.ts",
     "test:integration:live": "vitest run --project integration tests/integration/foundation-database.test.ts",
     "test:privacy": "vitest run --project privacy",
     "test:e2e": "playwright test",
@@ -34,7 +37,8 @@
     "check:protocol": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:privacy",
     "check:phase3": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:privacy",
     "check:phase4": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:privacy",
-    "check:phase5": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:privacy"
+    "check:phase5": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:privacy",
+    "check:phase6": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:integration:phase6 && pnpm test:privacy"
   },
   "devDependencies": {
     "@anonlimit/config": "workspace:*",

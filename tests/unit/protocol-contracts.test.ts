@@ -24,6 +24,8 @@ import {
   useStatusResponseSchema,
 } from "@anonlimit/contracts";
 import {
+  internalDemoResetRequestSchema,
+  internalDemoResetResponseSchema,
   internalActionRequestSchema,
   internalActionResponseSchema,
 } from "@anonlimit/contracts/internal-action";
@@ -316,6 +318,15 @@ describe("use results and destination receipts", () => {
     expect(
       internalActionResponseSchema.safeParse({ receipt, replayed: true, actionDelta: 1 }).success
     ).toBe(false);
+  });
+  it("selects exactly one demo run at the trusted Action Simulator reset boundary", () => {
+    expect(internalDemoResetRequestSchema.parse({ demoRunId: id })).toEqual({ demoRunId: id });
+    expect(
+      internalDemoResetRequestSchema.safeParse({ demoRunId: id, truncateAll: true }).success
+    ).toBe(false);
+    expect(
+      internalDemoResetResponseSchema.parse({ demoRunId: id, resetAt: receipt.committedAt })
+    ).toEqual({ demoRunId: id, resetAt: receipt.committedAt });
   });
 });
 

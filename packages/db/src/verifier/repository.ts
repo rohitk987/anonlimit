@@ -101,6 +101,30 @@ export interface DropAckConsumptionInput {
   readonly maskedUseRef: string;
 }
 
+export interface ResetDemoRunInput {
+  readonly expectedDemoRunId: string;
+  readonly newDemoRunId: string;
+  readonly eventId: string;
+  readonly traceId: string;
+  readonly policyId: string;
+  readonly policyVersion: number;
+  readonly resetAt: string;
+}
+
+export interface ResetDemoRunResult {
+  readonly previousDemoRunId: string;
+  readonly demoRunId: string;
+  readonly resetAt: string;
+  readonly policy: Policy;
+}
+
+export class DemoRunResetConflictError extends Error {
+  constructor() {
+    super("DEMO_RUN_RESET_CONFLICT");
+    this.name = "DemoRunResetConflictError";
+  }
+}
+
 interface PolicyRow {
   readonly policy_id: string;
   readonly version: number;
@@ -312,6 +336,7 @@ export interface VerifierDatabase {
   isDropNextAckArmed(operationId: string): Promise<boolean>;
   cancelDropNextAck(operationId: string): Promise<void>;
   consumeDropNextAckAfterSuccess(input: DropAckConsumptionInput): Promise<boolean>;
+  resetDemoRun(input: ResetDemoRunInput): Promise<ResetDemoRunResult>;
 }
 
 export function createVerifierDatabase(connectionString: string): VerifierDatabase {
@@ -362,6 +387,97 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     if (row.status !== "ACTIVE" || result.rows.length !== 1)
       throw new Error("DATABASE_INCONSISTENT");
     return { demoRunId: row.demo_run_id, status: "ACTIVE", startedAt: iso(row.started_at) };
+  };
+
+  const resetDemoRun = async (input: ResetDemoRunInput): Promise<ResetDemoRunResult> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      try {
+        const activeResult = await client.query<{ demo_run_id: string }>(
+          `SELECT demo_run_id
+           FROM verifier.demo_runs
+           WHERE status = 'ACTIVE'
+           FOR UPDATE`
+        );
+        if (
+          activeResult.rows.length !== 1 ||
+          activeResult.rows[0]?.demo_run_id !== input.expectedDemoRunId
+        )
+          throw new DemoRunResetConflictError();
+
+        const policyResult = await client.query<PolicyRow>(
+          `${POLICY_SELECT} WHERE policy_id = $1 AND version = $2 FOR SHARE`,
+          [input.policyId, input.policyVersion]
+        );
+        const policyRow = policyResult.rows[0];
+        if (!policyRow || policyRow.status !== "ACTIVE") throw new Error("DATABASE_INCONSISTENT");
+        const policy = policyFromRow(policyRow);
+
+        // Every delete is explicitly scoped to the active run selected by the server. The
+        // challenge/use cycle is broken without relaxing either foreign key or truncating data.
+        await client.query("DELETE FROM verifier.protocol_events WHERE demo_run_id = $1", [
+          input.expectedDemoRunId,
+        ]);
+        await client.query(
+          `DELETE FROM verifier.outbox_events
+           WHERE use_id IN (
+             SELECT use_id FROM verifier.use_records WHERE demo_run_id = $1
+           )`,
+          [input.expectedDemoRunId]
+        );
+        await client.query(
+          `UPDATE verifier.verification_challenges
+           SET state = 'ISSUED', use_id = NULL
+           WHERE demo_run_id = $1 AND state = 'CONSUMED'`,
+          [input.expectedDemoRunId]
+        );
+        await client.query("DELETE FROM verifier.use_records WHERE demo_run_id = $1", [
+          input.expectedDemoRunId,
+        ]);
+        await client.query("DELETE FROM verifier.verification_challenges WHERE demo_run_id = $1", [
+          input.expectedDemoRunId,
+        ]);
+        await client.query("DELETE FROM verifier.demo_faults WHERE demo_run_id = $1", [
+          input.expectedDemoRunId,
+        ]);
+        await client.query("DELETE FROM verifier.demo_runs WHERE demo_run_id = $1", [
+          input.expectedDemoRunId,
+        ]);
+        await client.query(
+          `INSERT INTO verifier.demo_runs (demo_run_id, status, started_at)
+           VALUES ($1, 'ACTIVE', $2)`,
+          [input.newDemoRunId, input.resetAt]
+        );
+        await client.query(
+          `INSERT INTO verifier.protocol_events (
+             event_id, occurred_at, event_name, trace_id, demo_run_id,
+             policy_id, policy_version, from_state, to_state, decision_code,
+             usage_delta, action_delta
+           ) VALUES ($1,$2,'DEMO_RESET',$3,$4,$5,$6,'UNSEEN','UNSEEN','DEMO_RESET',0,0)`,
+          [
+            input.eventId,
+            input.resetAt,
+            input.traceId,
+            input.newDemoRunId,
+            input.policyId,
+            input.policyVersion,
+          ]
+        );
+        await client.query("COMMIT");
+        return {
+          previousDemoRunId: input.expectedDemoRunId,
+          demoRunId: input.newDemoRunId,
+          resetAt: input.resetAt,
+          policy,
+        };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    } finally {
+      client.release();
+    }
   };
 
   const createChallenge = async (input: NewChallenge): Promise<StoredChallenge> => {
@@ -781,5 +897,6 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     isDropNextAckArmed,
     cancelDropNextAck,
     consumeDropNextAckAfterSuccess,
+    resetDemoRun,
   };
 }

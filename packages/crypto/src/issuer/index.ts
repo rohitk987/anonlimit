@@ -88,6 +88,7 @@ export function createSimulatedIssuer(options: IssuerOptions): IssuerAdapter {
                 scope,
                 policyDigest,
                 demoRunId,
+                slotIndex: slot,
                 nullifier,
                 authenticationKey,
               },

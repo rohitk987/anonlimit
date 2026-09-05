@@ -104,6 +104,7 @@ describe("Drizzle schema metadata", () => {
       "packages/db/migrations/verifier/0003-lost-ack-fault.sql",
       "packages/db/migrations/verifier/0004-fault-target-integrity.sql",
       "packages/db/migrations/action/0001-action-foundation.sql",
+      "packages/db/migrations/action/0002-run-scoped-reset.sql",
     ];
     const schemaPaths = ["packages/db/src/verifier/schema.ts", "packages/db/src/action/schema.ts"];
 

@@ -2,9 +2,9 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phases 0–5 are implemented, and G5 has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The demo can then drop a targeted acknowledgement after the receipt is durable and recover that receipt by retrying the exact IndexedDB request with zero extra use or action. The full three-use bound and live evidence remain later phases.
+**Phases 0–6 are implemented, and G6 Backend P0 has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The demo can complete all three hidden slots, recover a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, reject an authenticated fourth-slot proof without mutation, and reset one server-owned run while preserving unrelated state. Authoritative evidence remains a later phase.
 
-Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
+Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 6 record](docs/phase-6-bound-reset.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
 ## Start locally
 
@@ -36,36 +36,38 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the Phase 5 slice
+## Verify the Phase 6 slice
 
 ```powershell
-pnpm check:phase5
+pnpm check:phase6
+pnpm demo:golden
+pnpm demo:reset
 pnpm test:integration
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm check:phase5` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, isolated PostgreSQL acceptance tests, Action Simulator idempotency, worker lease/completion, real-socket lost-ack recovery, and privacy checks. The full integration suite adds live Compose role checks, while Playwright covers a normal use, a durable lost acknowledgement, unknown state across refresh, byte-identical request replay, and original receipt recovery.
+`pnpm check:phase6` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, cumulative PostgreSQL acceptance/delivery/recovery/reset tests, and privacy checks. `pnpm demo:golden` runs the reusable headless P0 scenario. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). Playwright covers the visible lost-acknowledgement and exact-retry wallet paths.
 
 A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the cumulative gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase5`, and `pnpm test:privacy`. G5 certifies exact retry safety; the three-use bound, evidence, and release invariants remain later phases.
+Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, and `pnpm test:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; authoritative evidence and release invariants remain later phases.
 
 ## Workspace
 
-| Location                 | Responsibility                                                                         |
-| ------------------------ | -------------------------------------------------------------------------------------- |
-| `apps/web`               | React/Vite holder wallet with IndexedDB state and real protocol flow                   |
-| `apps/api`               | Fastify health, issuance, challenge, presentation, use-status, and demo-fault routes   |
-| `apps/worker`            | Private leased outbox delivery and atomic receipt completion                           |
-| `apps/action-simulator`  | Private Fastify idempotent action and sanitized evidence endpoints                     |
-| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists                      |
-| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules                    |
-| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters                    |
-| `packages/db`            | Role-specific repositories, durable acceptance, seed, and append-only migration runner |
-| `packages/config`        | Separate validated server/client configuration                                         |
-| `packages/observability` | Log field allowlist, including child logger bindings                                   |
-| `packages/testing`       | Test-only helpers prohibited in production imports                                     |
+| Location                 | Responsibility                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `apps/web`               | React/Vite holder wallet with IndexedDB state and real protocol flow                        |
+| `apps/api`               | Fastify health, issuance, challenge, presentation, use-status, demo-fault, and reset routes |
+| `apps/worker`            | Private leased outbox delivery and atomic receipt completion                                |
+| `apps/action-simulator`  | Private Fastify idempotent action, reset, and sanitized evidence endpoints                  |
+| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists                           |
+| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules                         |
+| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters                         |
+| `packages/db`            | Role-specific repositories, durable acceptance, seed, and append-only migration runner      |
+| `packages/config`        | Separate validated server/client configuration                                              |
+| `packages/observability` | Log field allowlist, including child logger bindings                                        |
+| `packages/testing`       | Test-only helpers prohibited in production imports                                          |
 
 The local foundation image uses Vite preview and includes build tooling. Release packaging belongs to Phase 10. The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
 

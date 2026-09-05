@@ -13,6 +13,7 @@ const actionConfig = parseActionEnv({
   LOG_LEVEL: "silent",
   ACTION_PORT: "4101",
   DATABASE_URL_ACTION: "postgresql://action_service:phase3-action-password@localhost/db",
+  DEMO_MODE: "true",
   ACTION_SERVICE_TOKEN: TOKEN,
 });
 

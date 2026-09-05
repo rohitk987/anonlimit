@@ -67,6 +67,7 @@ const actionSchema = z.object({
   ...common,
   ACTION_PORT: integer(1, 65535),
   DATABASE_URL_ACTION: databaseUrl,
+  DEMO_MODE: boolean,
   ACTION_SERVICE_TOKEN: secret,
 });
 function parse<T>(schema: z.ZodType<T>, source: Source): T {
@@ -111,6 +112,7 @@ export function parseActionEnv(source: Source) {
     logLevel: env.LOG_LEVEL,
     port: env.ACTION_PORT,
     databaseUrl: env.DATABASE_URL_ACTION,
+    demoMode: env.DEMO_MODE,
     actionServiceToken: env.ACTION_SERVICE_TOKEN,
   };
 }

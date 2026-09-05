@@ -1,6 +1,7 @@
 import {
   challengeResponseSchema,
   demoFaultResponseSchema,
+  demoResetResponseSchema,
   issuanceResponseSchema,
   policySchema,
   useResultSchema,
@@ -8,6 +9,7 @@ import {
   type Action,
   type ChallengeResponse,
   type DemoFaultResponse,
+  type DemoResetResponse,
   type IssuanceResponse,
   type Policy,
   type Presentation,
@@ -29,6 +31,7 @@ export interface ApiClient {
   submitSerializedPresentation(serializedEnvelope: string, operationId: string): Promise<UseResult>;
   getUseStatus(useId: string): Promise<UseStatusResponse>;
   armDropNextAck(operationId: string): Promise<DemoFaultResponse>;
+  resetDemo(): Promise<DemoResetResponse>;
 }
 
 export class ApiTransportError extends Error {
@@ -130,6 +133,14 @@ export function createApiClient(baseUrl: string): ApiClient {
         await request("/v1/demo/faults/drop-next-ack", {
           method: "POST",
           body: JSON.stringify({ operationId }),
+        })
+      );
+    },
+    async resetDemo() {
+      return demoResetResponseSchema.parse(
+        await request("/v1/demo/reset", {
+          method: "POST",
+          body: JSON.stringify({}),
         })
       );
     },

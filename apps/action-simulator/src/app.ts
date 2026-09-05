@@ -8,10 +8,15 @@ import Fastify, {
 } from "fastify";
 
 import { type ActionEnv } from "@anonlimit/config/server";
-import { ActionIntegrityConflictError, type ActionDatabase } from "@anonlimit/db/action";
+import {
+  ActionDemoRunResetError,
+  ActionIntegrityConflictError,
+  type ActionDatabase,
+} from "@anonlimit/db/action";
 import { internalActionRequestSchema, internalActionResponseSchema } from "@anonlimit/contracts";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
 import { createSafeLogger } from "@anonlimit/observability";
+import { registerDemoRoutes } from "./routes/demo.routes.js";
 
 function bearerToken(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return null;
@@ -43,6 +48,9 @@ export function createApp(
           check: databaseOrCheck,
           close: async () => undefined,
           commitAction: async () => {
+            throw new Error("DATABASE_UNAVAILABLE");
+          },
+          resetDemoRun: async () => {
             throw new Error("DATABASE_UNAVAILABLE");
           },
         }
@@ -107,6 +115,14 @@ export function createApp(
         .send(internalActionResponseSchema.parse(result));
     } catch (error) {
       if (
+        error instanceof ActionDemoRunResetError ||
+        (error &&
+          typeof error === "object" &&
+          "name" in error &&
+          error.name === "ActionDemoRunResetError")
+      )
+        return reply.code(410).send({ code: "DEMO_RUN_RESET" });
+      if (
         error instanceof ActionIntegrityConflictError ||
         (error &&
           typeof error === "object" &&
@@ -128,5 +144,6 @@ export function createApp(
       return reply.code(500).send({ code: "INTERNAL_ERROR" });
     }
   });
+  if (config.demoMode) registerDemoRoutes(app, config.actionServiceToken, database);
   return app;
 }

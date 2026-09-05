@@ -3,7 +3,7 @@ import { hex64Schema } from "@anonlimit/contracts";
 import { hmacSha256Hex, sha256Hex } from "../holder/primitives.js";
 import {
   createBindingVerifier,
-  type SimulatorOptions,
+  type VerifierOptions,
   type VerificationInput,
   type VerificationResult,
 } from "../simulated-provider/server.js";
@@ -11,7 +11,7 @@ import {
 export interface VerifierAdapter {
   verifyPresentation(input: VerificationInput): Promise<VerificationResult>;
 }
-export function createSimulatedVerifier(options: SimulatorOptions): VerifierAdapter {
+export function createSimulatedVerifier(options: VerifierOptions): VerifierAdapter {
   return { verifyPresentation: createBindingVerifier(options, true) };
 }
 
@@ -33,6 +33,7 @@ export function createLookupProtection(keys: { ledgerKey: string; actionKey: str
 }
 export type {
   SimulatorOptions,
+  VerifierOptions,
   VerificationInput,
   VerificationResult,
 } from "../simulated-provider/server.js";

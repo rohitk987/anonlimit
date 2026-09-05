@@ -7,8 +7,11 @@ import {
   sha256Hex,
 } from "@anonlimit/crypto/verifier";
 import { createVerifierDatabase } from "@anonlimit/db/verifier";
+import { DEFAULT_POLICY_ID, DEFAULT_POLICY_VERSION } from "@anonlimit/db/seed";
 import { createApp } from "./app.js";
 import { createLostAckFaultController } from "./modules/demo/fault-controller.js";
+import { createActionSimulatorResetClient } from "./modules/internal/action-simulator-client.js";
+import { createDemoResetController } from "./modules/demo/reset-demo.js";
 import { createProtocolService } from "./modules/protocol/index.js";
 
 interface PublicParameters {
@@ -53,6 +56,7 @@ async function main(): Promise<void> {
   const verifier = createSimulatedVerifier({
     issuerKeyId: config.issuerKeyId,
     issuerSecret: trimmedSecret,
+    demoMode: config.demoMode,
   });
   const lookupProtection = createLookupProtection({
     ledgerKey: config.verifierLedgerHmacKey,
@@ -66,7 +70,16 @@ async function main(): Promise<void> {
     sha256Hex,
   });
   const faultController = createLostAckFaultController(database);
-  const app = createApp(config, database.check, protocol, faultController);
+  const resetController = createDemoResetController({
+    repository: database,
+    actionClient: createActionSimulatorResetClient({
+      actionServiceUrl: config.actionServiceUrl,
+      actionServiceToken: config.actionServiceToken,
+    }),
+    policyId: DEFAULT_POLICY_ID,
+    policyVersion: DEFAULT_POLICY_VERSION,
+  });
+  const app = createApp(config, database.check, protocol, faultController, resetController);
   app.addHook("onClose", () => database.close());
   const stop = () => {
     void app.close().catch(() => {

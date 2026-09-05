@@ -21,6 +21,7 @@ const actionEnv = parseActionEnv({
   ...common,
   ACTION_PORT: "4100",
   DATABASE_URL_ACTION: "postgresql://action:test-only@localhost/db",
+  DEMO_MODE: "false",
 });
 describe("foundation health surfaces", () => {
   for (const [service, create] of [
@@ -80,6 +81,24 @@ describe("foundation health surfaces", () => {
         url: "/v1/demo/faults/drop-next-ack",
         headers: { "content-type": "application/json" },
         payload: { operationId: "00000000-0000-4000-8000-000000000001" },
+      });
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({ code: "NOT_FOUND" });
+    } finally {
+      await app.close();
+    }
+  });
+  it("does not register Action Simulator reset when demo mode is disabled", async () => {
+    const app = createAction(actionEnv, () => Promise.resolve());
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/internal/v1/demo/reset",
+        headers: {
+          authorization: `Bearer ${common.ACTION_SERVICE_TOKEN}`,
+          "content-type": "application/json",
+        },
+        payload: { demoRunId: "00000000-0000-4000-8000-000000000001" },
       });
       expect(response.statusCode).toBe(404);
       expect(response.json()).toEqual({ code: "NOT_FOUND" });

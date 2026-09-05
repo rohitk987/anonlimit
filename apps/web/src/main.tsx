@@ -8,6 +8,7 @@ import {
   issueWalletCredential,
   loadWallet,
   performWalletUse,
+  resetWalletDemo,
   retryLastWalletUse,
   resumePendingWalletUse,
   WalletOutcomeUnknownError,
@@ -81,6 +82,20 @@ function App() {
       setMessage("Pass ready in this browser wallet.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Issuance failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetDemo() {
+    setBusy(true);
+    setMessage("Resetting the demo run and local wallet…");
+    try {
+      const next = await resetWalletDemo(client);
+      setSnapshot(next);
+      setMessage("Demo run reset. This browser wallet is clear; issue a new pass.");
+    } catch {
+      setMessage("Reset failed. The local wallet was kept.");
     } finally {
       setBusy(false);
     }
@@ -239,6 +254,11 @@ function App() {
           >
             Issue anonymous pass
           </button>
+          {config.demoMode ? (
+            <button type="button" onClick={() => void resetDemo()} disabled={busy}>
+              Reset demo run
+            </button>
+          ) : null}
           {config.demoMode ? (
             <button
               type="button"

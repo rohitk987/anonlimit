@@ -124,7 +124,10 @@ export interface VerifierPort {
     readonly presentation: Presentation;
   }): Promise<
     | { readonly valid: true; readonly diagnosticCode: "VERIFIED" }
-    | { readonly valid: false; readonly diagnosticCode: "PRESENTATION_REJECTED" }
+    | {
+        readonly valid: false;
+        readonly diagnosticCode: "PRESENTATION_REJECTED" | "BOUND_EXCEEDED";
+      }
   >;
 }
 

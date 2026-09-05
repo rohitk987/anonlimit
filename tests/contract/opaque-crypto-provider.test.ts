@@ -20,7 +20,7 @@ import {
   createSimulatedVerifier,
   type VerificationInput,
 } from "@anonlimit/crypto/verifier";
-import { createSimulatedAuditor } from "@anonlimit/crypto/audit";
+import { createSimulatedAuditor, createSimulatedBoundTestAdapter } from "@anonlimit/crypto/audit";
 
 const now = Date.parse("2026-09-05T12:00:00.000Z");
 const runId = "00000000-0000-4000-8000-000000000001";
@@ -198,6 +198,68 @@ describe("opaque simulated provider contract", () => {
           challenge: retryChallenge,
         })
       ).rejects.toThrow("PRESENTATION_REJECTED");
+  });
+
+  it("privately diagnoses only an authentic boundary-slot proof in demo mode", async () => {
+    const { providerOptions, issuer } = await fixture();
+    const currentChallenge = await challenge(policy, 3);
+    const boundAdapter = createSimulatedBoundTestAdapter({
+      ...providerOptions,
+      randomBytes: deterministicIssuanceRandom(),
+    });
+    const presentation = await boundAdapter.createOutOfRangePresentation({
+      policy,
+      demoRunId: runId,
+      operationId: operationIds[3],
+      action,
+      challenge: currentChallenge,
+    });
+    const input = await verificationInput({
+      selectedPolicy: policy,
+      operationId: operationIds[3],
+      challenge: currentChallenge,
+      presentation,
+      publicParameters: issuer.publicParameters,
+    });
+
+    expect(
+      await createSimulatedVerifier({ ...providerOptions, demoMode: true }).verifyPresentation(
+        input
+      )
+    ).toEqual({ valid: false, diagnosticCode: "BOUND_EXCEEDED" });
+    expect(await createSimulatedVerifier(providerOptions).verifyPresentation(input)).toEqual({
+      valid: false,
+      diagnosticCode: "PRESENTATION_REJECTED",
+    });
+
+    const proof = JSON.parse(
+      Buffer.from(presentation.opaqueProof, "base64url").toString("utf8")
+    ) as { version: string; ticket: string; authenticator: string };
+    const altered = {
+      ...input,
+      presentation: {
+        ...presentation,
+        opaqueProof: Buffer.from(
+          JSON.stringify({ ...proof, authenticator: "0".repeat(64) })
+        ).toString("base64url"),
+      },
+    };
+    expect(
+      await createSimulatedVerifier({ ...providerOptions, demoMode: true }).verifyPresentation(
+        altered
+      )
+    ).toEqual({ valid: false, diagnosticCode: "PRESENTATION_REJECTED" });
+    expect(
+      await createSimulatedVerifier({ ...providerOptions, demoMode: true }).verifyPresentation({
+        ...input,
+        challenge: { ...currentChallenge, nonce: "f".repeat(64) },
+      })
+    ).toEqual({ valid: false, diagnosticCode: "PRESENTATION_REJECTED" });
+
+    expect(Object.keys(presentation)).not.toContain("hiddenSlot");
+    expect(Object.keys(proof).sort()).toEqual(["authenticator", "ticket", "version"]);
+    expect(JSON.stringify({ presentation })).not.toContain("slotIndex");
+    expect(JSON.stringify({ presentation })).not.toContain("BOUND_EXCEEDED");
   });
 
   it("binds proofs to policy, audience, run, operation, action, and challenge", async () => {

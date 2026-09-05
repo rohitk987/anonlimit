@@ -8,6 +8,7 @@ import { createSimulatedHolder, sha256Hex } from "@anonlimit/crypto/holder";
 import { canonicalJson, computeIntentDigest } from "@anonlimit/domain";
 import { ApiResponseError, type ApiClient } from "../../lib/api-client.js";
 import {
+  clearWalletAfterDemoReset,
   clearPreparedOperation,
   completeAcceptedOperation,
   readCredential,
@@ -111,6 +112,16 @@ export async function issueWalletCredential(client: ApiClient): Promise<WalletSn
   };
   if (!(await saveCredentialIfAbsent(record))) throw new Error("CREDENTIAL_ALREADY_ISSUED");
   return loadWallet();
+}
+
+/**
+ * The server selects and replaces its active demo run first. Only a strictly validated success
+ * response allows the browser to clear its credential and persisted operation.
+ */
+export async function resetWalletDemo(client: ApiClient): Promise<WalletSnapshot> {
+  await client.resetDemo();
+  await clearWalletAfterDemoReset();
+  return { credential: null, operation: null };
 }
 
 function operationId(): string {
