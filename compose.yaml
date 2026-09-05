@@ -1,0 +1,135 @@
+name: anonlimit
+x-build: &build
+  context: .
+  dockerfile: infra/docker/runtime.Dockerfile
+  args:
+    VITE_API_BASE_URL: ${VITE_API_BASE_URL:?Run pnpm setup:env}
+    VITE_DEMO_MODE: ${VITE_DEMO_MODE:?Run pnpm setup:env}
+x-runtime: &runtime
+  build: *build
+  image: anonlimit-foundation:local
+  init: true
+  networks: [private]
+x-logging: &logging
+  NODE_ENV: ${NODE_ENV:?Required}
+  LOG_LEVEL: ${LOG_LEVEL:?Required}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Required}
+      POSTGRES_USER: ${POSTGRES_USER:?Required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Required}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?Required}
+      ACTION_DB_PASSWORD: ${ACTION_DB_PASSWORD:?Required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/00-create-schemas-and-roles.sh:/docker-entrypoint-initdb.d/00-create-schemas-and-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [private]
+  migrate:
+    <<: *runtime
+    command: ["pnpm", "db:migrate"]
+    environment:
+      DATABASE_URL_MIGRATION: ${DATABASE_URL_MIGRATION:?Required}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+  api:
+    <<: *runtime
+    networks: [private, public]
+    command: ["node", "apps/api/dist/server.js"]
+    environment:
+      <<: *logging
+      API_PORT: "4000"
+      WEB_ORIGIN: ${WEB_ORIGIN:?Required}
+      DATABASE_URL_API: ${DATABASE_URL_API:?Required}
+      DEMO_MODE: ${DEMO_MODE:?Required}
+      ACTION_SERVICE_URL: ${ACTION_SERVICE_URL:?Required}
+      ACTION_SERVICE_TOKEN: ${ACTION_SERVICE_TOKEN:?Required}
+      VERIFIER_LEDGER_HMAC_KEY: ${VERIFIER_LEDGER_HMAC_KEY:?Required}
+      VERIFIER_ACTION_HMAC_KEY: ${VERIFIER_ACTION_HMAC_KEY:?Required}
+      OPAQUE_CRYPTO_PROVIDER: ${OPAQUE_CRYPTO_PROVIDER:?Required}
+    ports: ["127.0.0.1:4000:4000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  action-simulator:
+    <<: *runtime
+    command: ["node", "apps/action-simulator/dist/server.js"]
+    environment:
+      <<: *logging
+      ACTION_PORT: "4100"
+      DATABASE_URL_ACTION: ${DATABASE_URL_ACTION:?Required}
+      ACTION_SERVICE_TOKEN: ${ACTION_SERVICE_TOKEN:?Required}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4100/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  worker:
+    <<: *runtime
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      <<: *logging
+      DATABASE_URL_WORKER: ${DATABASE_URL_WORKER:?Required}
+      ACTION_SERVICE_URL: ${ACTION_SERVICE_URL:?Required}
+      ACTION_SERVICE_TOKEN: ${ACTION_SERVICE_TOKEN:?Required}
+      OUTBOX_POLL_MS: ${OUTBOX_POLL_MS:?Required}
+    healthcheck:
+      test: ["CMD", "node", "apps/worker/dist/healthcheck.js"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      action-simulator: { condition: service_healthy }
+  web:
+    <<: *runtime
+    command: ["pnpm", "--filter", "@anonlimit/web", "preview"]
+    networks: [private, public]
+    ports: ["127.0.0.1:5173:5173"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      api: { condition: service_healthy }
+
+networks:
+  private: { internal: true }
+  public: {}
+
+volumes:
+  postgres-data: {}

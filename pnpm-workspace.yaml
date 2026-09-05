@@ -1,0 +1,17 @@
+packages:
+  - apps/*
+  - packages/*
+engineStrict: true
+linkWorkspacePackages: true
+saveExact: true
+sharedWorkspaceLockfile: true
+strictPeerDependencies: true
+verifyDepsBeforeRun: false
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - "@playwright/test@1.63.0"
+  - eslint@10.10.0
+  - fastify@5.12.3
+  - playwright-core@1.63.0
+  - playwright@1.63.0

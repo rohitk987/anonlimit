@@ -1,0 +1,31 @@
+name: Foundation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:env
+      - run: pnpm check:foundation
+      - run: docker compose config --quiet
+      - run: docker compose build api
+      - run: docker compose up -d --no-build --wait --wait-timeout 120
+      - run: pnpm test:integration
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - name: Stop this job's stack
+        if: always()
+        run: docker compose down

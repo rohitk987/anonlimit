@@ -1,0 +1,12 @@
+**/node_modules/
+**/dist/
+.cache/
+coverage/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+# Approved source specifications retain their existing formatting.
+architecture.md
+phases.md
+prd.md
+rules.md

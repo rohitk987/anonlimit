@@ -1,0 +1,23 @@
+{
+  "name": "@anonlimit/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite preview --configLoader native --host 0.0.0.0 --port 5173 --strictPort"
+  },
+  "dependencies": {
+    "@anonlimit/config": "workspace:*",
+    "@anonlimit/contracts": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "vite": "7.3.6",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7"
+  }
+}
