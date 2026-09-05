@@ -15,6 +15,7 @@ async function assetFiles(directory: string): Promise<readonly string[]> {
 
 async function main(): Promise<void> {
   const files = await assetFiles("apps/web/dist/assets");
+  if (files.length === 0) throw new Error("Build the web assets before running the privacy audit.");
   const contents = await Promise.all(files.map((file) => readFile(file, "utf8")));
   const markers: string[] = [];
   try {

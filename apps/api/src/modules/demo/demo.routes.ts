@@ -1,4 +1,5 @@
 import {
+  demoBoundaryProbeRequestSchema,
   demoDropAckRequestSchema,
   demoLinkabilityRequestSchema,
   demoResetRequestSchema,
@@ -11,6 +12,7 @@ import type { DemoResetController } from "./reset-demo.js";
 import type { EvidenceController } from "../evidence/evidence-controller.js";
 import { registerEventRoutes } from "../events/events.routes.js";
 import type { EventStreamController } from "../events/events-controller.js";
+import type { DemoBoundaryController } from "./boundary-controller.js";
 
 async function requireJson(request: FastifyRequest): Promise<void> {
   const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase();
@@ -22,7 +24,8 @@ export function registerDemoRoutes(
   faultController?: LostAckFaultController,
   resetController?: DemoResetController,
   evidenceController?: EvidenceController,
-  eventController?: EventStreamController
+  eventController?: EventStreamController,
+  boundaryController?: DemoBoundaryController
 ): void {
   if (faultController) {
     app.post(
@@ -58,11 +61,27 @@ export function registerDemoRoutes(
   }
 
   if (evidenceController) {
-    app.get("/v1/demo/evidence", async () => evidenceController.getEvidence());
-    app.post("/v1/demo/linkability-test", { onRequest: requireJson }, async (request) => {
-      const parsed = demoLinkabilityRequestSchema.safeParse(request.body);
-      if (!parsed.success) throw new ProtocolPublicError("BAD_REQUEST");
-      return evidenceController.runLinkability(parsed.data, request.id);
+    app.get("/v1/demo/evidence", async (_request, reply) => {
+      reply.header("Cache-Control", "no-store");
+      return evidenceController.getEvidence();
+    });
+    app.post(
+      "/v1/demo/linkability-test",
+      { onRequest: requireJson, bodyLimit: 1_048_576 },
+      async (request) => {
+        const parsed = demoLinkabilityRequestSchema.safeParse(request.body);
+        if (!parsed.success) throw new ProtocolPublicError("BAD_REQUEST");
+        return evidenceController.runLinkability(parsed.data, request.id);
+      }
+    );
+  }
+
+  if (boundaryController) {
+    app.post("/v1/demo/attempt-fourth-use", { onRequest: requireJson }, async (request, reply) => {
+      if (!demoBoundaryProbeRequestSchema.safeParse(request.body).success)
+        throw new ProtocolPublicError("BAD_REQUEST");
+      const result = await boundaryController.attemptFourthUse(request.id);
+      return reply.code(result.statusCode).send(result.body);
     });
   }
 

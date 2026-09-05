@@ -5,6 +5,7 @@ import { protocolVersionSchema, timestampSchema, uuidSchema } from "./primitives
 
 export const emptyRequestSchema = z.strictObject({});
 export const demoResetRequestSchema = emptyRequestSchema;
+export const demoBoundaryProbeRequestSchema = emptyRequestSchema;
 export const demoResetResponseSchema = z.strictObject({
   protocolVersion: protocolVersionSchema,
   demoRunId: uuidSchema,
@@ -26,6 +27,7 @@ export const demoLinkabilityRequestSchema = z.strictObject({
   presentations: z.array(presentationSchema).min(2).max(101),
 });
 export type DemoResetRequest = z.infer<typeof demoResetRequestSchema>;
+export type DemoBoundaryProbeRequest = z.infer<typeof demoBoundaryProbeRequestSchema>;
 export type DemoResetResponse = z.infer<typeof demoResetResponseSchema>;
 export type DemoDropAckRequest = z.infer<typeof demoDropAckRequestSchema>;
 export type DemoFaultResponse = z.infer<typeof demoFaultResponseSchema>;

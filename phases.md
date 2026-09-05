@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–7 complete; G7 Evidence P0 passed; Phase 8 is next |
+| Status | Phases 0–8 complete; G8 P0 lock passed; Phase 9 is deferred |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -887,28 +887,21 @@ Present the real system as a clear, memorable demonstration that completes in un
 
 ### Tasks
 
-- [ ] Build the final Demo Lab layout.
-- [ ] Add guided controls:
-  - Issue credential.
-  - Present next use.
-  - Drop next acknowledgement.
-  - Retry last request.
-  - Attempt fourth use.
-  - Run privacy audit.
-  - Reset.
-- [ ] Build the local-only Holder Wallet panel.
-- [ ] Build the Issuer → Wallet → Verifier → Action Service swimlane.
-- [ ] Build the sanitized verifier evidence table.
-- [ ] Build the invariant summary.
-- [ ] Build the linkability matrix.
-- [ ] Build the opaque-crypto assumptions card.
-- [ ] Drive the UI only from real API commands, safe events, and evidence.
-- [ ] Make new acceptance, unknown outcome, recovered retry, and rejection visually distinct.
-- [ ] Do not animate retry as another use.
-- [ ] Add text and icons in addition to color.
-- [ ] Add loading, timeout, recoverable-error, and reset states.
-- [ ] Implement the P0 Playwright golden scenario.
-- [ ] Write and rehearse the 2–3-minute narration.
+- [x] Build the final Demo Lab layout.
+- [x] Add guided controls: issue, present, drop acknowledgement, retry, fourth-use probe, audit, and reset.
+- [x] Build the local-only Holder Wallet panel.
+- [x] Build the Issuer → Wallet → Verifier → Action Service swimlane.
+- [x] Build the sanitized verifier evidence table.
+- [x] Build the invariant summary.
+- [x] Build the linkability matrix.
+- [x] Build the opaque-crypto assumptions card.
+- [x] Drive the UI only from real API commands, safe events, and evidence.
+- [x] Make new acceptance, unknown outcome, recovered retry, and rejection visually distinct.
+- [x] Do not animate retry as another use.
+- [x] Add text and icons in addition to color.
+- [x] Add loading, timeout, recoverable-error, and reset states.
+- [x] Implement the P0 Playwright golden scenario.
+- [x] Write and rehearse the 2–3-minute narration.
 
 ### Key files
 
@@ -957,12 +950,16 @@ A polished, repeatable P0 submission.
 
 ### Exit gate — G8 P0 lock
 
-- Complete browser scenario passes repeatedly from reset.
+- Complete browser scenario passes repeatedly from reset (two runs: 9.2s and 8.0s).
 - Every invariant is PASS.
-- Privacy suite is clean.
-- Docker Compose cold start succeeds.
+- Privacy suite and generated browser asset scan are clean.
+- Docker Compose cold start succeeds, including restart after reset and migration 0006.
 - Demo finishes under three minutes.
 - No UI screen relies on fake counters, receipts, events, or audit output.
+
+### Phase 8 result — G8 passed
+
+The Demo Lab is judge-ready. The browser controls drive the real API and IndexedDB wallet, while evidence, safe protocol events, sanitized records, invariant statuses, linkability comparisons, and crypto assumptions are rendered in one responsive page. The controlled boundary probe uses the ordinary verifier and exposes only `PRESENTATION_REJECTED` publicly. See [the demo script](docs/demo-script.md).
 
 After this gate, P0 is protected. Any later change that breaks it is reverted or fixed before other work continues.
 
@@ -1472,7 +1469,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 5. Safe retry | G5 | [x] |
 | 6. Bound and rejection | G6 | [x] |
 | 7. Evidence and privacy | G7 | [x] |
-| 8. Judge experience | G8 — P0 lock | [ ] |
+| 8. Judge experience | G8 — P0 lock | [x] |
 | 9. P1 resilience | G9 — optional | [ ] |
 | 10. Release | G10 — submission | [ ] |
 

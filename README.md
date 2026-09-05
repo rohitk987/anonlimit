@@ -2,7 +2,7 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phases 0–7 are implemented, and G7 Evidence P0 has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The demo can complete all three hidden slots, recover a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, reject an authenticated fourth-slot proof without mutation, and reset one server-owned run while preserving unrelated state. The API now derives invariant evidence from verifier and Action Simulator state, streams privacy-safe protocol events with reconnect cursors, and runs transient linkability checks that distinguish `UNLINKABLE` legitimate uses from `SAME_USE` retries.
+**Phases 0–8 are implemented, and G8 P0 lock has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The Demo Lab completes all three hidden slots, recovers a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, rejects an authenticated fourth-slot proof without mutation, resets one server-owned run, and renders backend-derived evidence, safe events, invariant checks, a linkability matrix, and the opaque-crypto assumptions.
 
 Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 7 record](docs/phase-7-evidence-privacy.md), [Phase 6 record](docs/phase-6-bound-reset.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
@@ -36,7 +36,7 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the Phase 7 slice
+## Verify the Phase 8 P0 slice
 
 ```powershell
 pnpm check:phase7
@@ -48,11 +48,11 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm check:phase7` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, cumulative PostgreSQL acceptance/delivery/recovery/reset/evidence tests, privacy checks, and the browser asset scanner. `pnpm audit:privacy` scans generated browser assets and local secret markers without printing values. `pnpm demo:golden` runs the reusable headless P0 scenario. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). Playwright covers the visible lost-acknowledgement and exact-retry wallet paths.
+`pnpm check:phase7` runs the cumulative backend and privacy gate. `pnpm audit:privacy` scans generated browser assets and local secret markers without printing values. `pnpm demo:golden` runs the reusable headless P0 scenario. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). `pnpm test:e2e` runs two complete Phase 8 rehearsals plus the wallet recovery regressions; the narration is in [docs/demo-script.md](docs/demo-script.md).
 
 A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the cumulative gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, `pnpm test:integration:phase7`, `pnpm test:privacy`, and `pnpm audit:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; G7 certifies backend-derived evidence, safe event replay, transient linkability auditing, and privacy scanning. The guided judge experience and release invariants remain later phases.
+Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, `pnpm test:integration:phase7`, `pnpm test:privacy`, and `pnpm audit:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; G7 certifies backend-derived evidence, safe event replay, transient linkability auditing, and privacy scanning; G8 certifies the responsive guided browser flow. Phase 9 resilience and Phase 10 release remain later work.
 
 ## Workspace
 

@@ -6,7 +6,10 @@ import {
   createSimulatedVerifier,
   sha256Hex,
 } from "@anonlimit/crypto/verifier";
-import { createSimulatedAuditor } from "@anonlimit/crypto/audit";
+import {
+  createSimulatedAuditor,
+  createSimulatedBoundaryProbeAdapter,
+} from "@anonlimit/crypto/audit";
 import { createVerifierDatabase } from "@anonlimit/db/verifier";
 import { DEFAULT_POLICY_ID, DEFAULT_POLICY_VERSION } from "@anonlimit/db/seed";
 import { createApp } from "./app.js";
@@ -17,6 +20,7 @@ import { createDemoResetController } from "./modules/demo/reset-demo.js";
 import { createEvidenceController } from "./modules/evidence/evidence-controller.js";
 import { createEventStreamController } from "./modules/events/events-controller.js";
 import { createProtocolService } from "./modules/protocol/index.js";
+import { createDemoBoundaryController } from "./modules/demo/boundary-controller.js";
 
 interface PublicParameters {
   readonly provider: "SIMULATED_CAPABILITIES_V1";
@@ -100,6 +104,19 @@ async function main(): Promise<void> {
     sha256Hex,
   });
   const eventController = createEventStreamController(database);
+  const boundaryController = config.demoMode
+    ? createDemoBoundaryController({
+        repository: database,
+        protocol,
+        probeAdapter: createSimulatedBoundaryProbeAdapter({
+          issuerKeyId: config.issuerKeyId,
+          issuerSecret: trimmedSecret,
+          demoMode: config.demoMode,
+        }),
+        policyId: DEFAULT_POLICY_ID,
+        policyVersion: DEFAULT_POLICY_VERSION,
+      })
+    : undefined;
   const app = createApp(
     config,
     database.check,
@@ -107,7 +124,8 @@ async function main(): Promise<void> {
     faultController,
     resetController,
     evidenceController,
-    eventController
+    eventController,
+    boundaryController
   );
   app.addHook("onClose", () => database.close());
   const stop = () => {

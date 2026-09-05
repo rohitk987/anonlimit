@@ -1,12 +1,183 @@
+import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
+import { evidenceReportSchema } from "@anonlimit/contracts";
+import { assertNoForbiddenData } from "@anonlimit/testing";
+
+const apiBase = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://localhost:4000";
+
+function databaseEvidence() {
+  // A separate database connection checks the UI/API against both durable ledgers.
+  const sql = `WITH active AS (SELECT demo_run_id FROM verifier.demo_runs WHERE status = 'ACTIVE'),
+    uses AS (SELECT * FROM verifier.use_records WHERE demo_run_id = (SELECT demo_run_id FROM active)),
+    actions AS (SELECT * FROM action_sim.action_results WHERE demo_run_id = (SELECT demo_run_id FROM active)),
+    outbox AS (SELECT * FROM verifier.outbox_events WHERE use_id IN (SELECT use_id FROM uses))
+    SELECT json_build_object(
+      'uses', (SELECT count(*) FROM uses), 'actions', (SELECT count(*) FROM actions),
+      'outbox', (SELECT count(*) FROM outbox),
+      'receipts', (SELECT coalesce(json_agg(receipt->>'receiptId' ORDER BY receipt->>'receiptId'), '[]') FROM actions),
+      'safePayloads', (SELECT coalesce(json_agg(safe_payload), '[]') FROM outbox),
+      'safeRows', (SELECT coalesce(json_agg(e), '[]') FROM verifier.evidence_uses e WHERE demo_run_id = (SELECT demo_run_id FROM active))
+    )`;
+  const output = execFileSync(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "sh",
+      "-c",
+      'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"',
+      "phase8-evidence",
+      sql,
+    ],
+    { encoding: "utf8", timeout: 15_000 }
+  );
+  return JSON.parse(output.trim()) as {
+    uses: number;
+    actions: number;
+    outbox: number;
+    receipts: string[];
+    safePayloads: unknown;
+    safeRows: unknown;
+  };
+}
+
+test.beforeEach(async ({ request }) => {
+  expect((await request.post(`${apiBase}/v1/demo/reset`, { data: {} })).ok()).toBe(true);
+});
+
+for (const rehearsal of [1, 2]) {
+  test(`Phase 8 complete real P0 rehearsal ${rehearsal} finishes with all invariants PASS`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const started = Date.now();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/");
+    await expect(page.getByTestId("connection")).toHaveText("API and database connected");
+    await page.getByRole("button", { name: "Reset demo run" }).click();
+    await expect(page.getByTestId("metric-committedUses")).toHaveText("0");
+    await expect(page.getByTestId("metric-externalActions")).toHaveText("0");
+    expect(databaseEvidence()).toMatchObject({ uses: 0, actions: 0, outbox: 0, receipts: [] });
+    await expect(page.getByText("02 / HOLDER WALLET · LOCAL ONLY")).toBeVisible();
+    await expect(page.getByTestId("assumptions")).toBeVisible();
+
+    // Drive issuance with a real keyboard focus and activation.
+    const issue = page.getByRole("button", { name: "Issue anonymous pass" });
+    await issue.focus();
+    await expect(issue).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("3 of 3 uses available", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Use next slot" }).click();
+    await expect(page.getByTestId("operation-status")).toHaveText(
+      "NEW ACCEPTANCE · RECEIPT STORED"
+    );
+    await expect(page.getByTestId("operation-status")).toHaveAttribute("data-tone", "acceptance");
+    await expect(page.getByTestId("metric-externalActions")).toHaveText("1");
+
+    const wire: string[] = [];
+    page.on("request", (outgoing) => {
+      if (
+        outgoing.method() === "POST" &&
+        new URL(outgoing.url()).pathname === "/v1/verifier/presentations"
+      )
+        wire.push(outgoing.postData() ?? "");
+    });
+    await page.getByRole("button", { name: "Drop next acknowledgement" }).click();
+    await expect(page.getByTestId("operation-status")).toHaveText(
+      "FAULT ARMED · NEXT ACKNOWLEDGEMENT"
+    );
+    await page.getByRole("button", { name: "Use next slot" }).click();
+    await expect(page.getByTestId("operation-status")).toContainText("OUTCOME UNKNOWN", {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("operation-status")).toHaveAttribute("data-tone", "unknown");
+    await expect(page.getByTestId("metric-externalActions")).toHaveText("2");
+    const beforeRetry = databaseEvidence();
+    expect(beforeRetry).toMatchObject({ uses: 2, actions: 2, outbox: 2 });
+    await page.reload();
+    await expect(page.getByTestId("operation-status")).toContainText("OUTCOME UNKNOWN");
+    await expect(page.getByText("2 of 3 uses available", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use next slot" })).toBeDisabled();
+    await page.getByRole("button", { name: "Retry last request" }).click();
+    await expect(page.getByTestId("operation-status")).toHaveText(
+      "RETRY MATCHED · RECEIPT RECOVERED"
+    );
+    await expect(page.getByTestId("operation-status")).toHaveAttribute("data-tone", "retry");
+    expect(wire).toHaveLength(2);
+    expect(wire[1]).toBe(wire[0]);
+    expect(databaseEvidence()).toEqual(beforeRetry);
+    expect(beforeRetry.receipts).toContain(await page.getByTestId("wallet-receipt").textContent());
+    await expect(page.getByTestId("metric-retryUsageDelta")).toHaveText("0");
+    await expect(page.getByTestId("metric-retryActionDelta")).toHaveText("0");
+
+    await page.getByRole("button", { name: "Use next slot" }).click();
+    await expect(page.getByText("0 of 3 uses available", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("metric-externalActions")).toHaveText("3");
+    const beforeRejection = databaseEvidence();
+    expect(beforeRejection).toMatchObject({ uses: 3, actions: 3, outbox: 3 });
+    await page.getByRole("button", { name: "Attempt fourth use" }).click();
+    await expect(page.getByTestId("operation-status")).toHaveText(
+      "FOURTH USE REJECTED · NO ACCEPTANCE"
+    );
+    await expect(page.getByTestId("operation-status")).toHaveAttribute("data-tone", "rejection");
+    expect(databaseEvidence()).toEqual(beforeRejection);
+    await page.getByRole("button", { name: "Run privacy audit" }).click();
+    await expect(page.getByTestId("evidence-overall")).toContainText("PASS", { timeout: 20_000 });
+    const response = await request.get(`${apiBase}/v1/demo/evidence`);
+    expect(response.ok()).toBe(true);
+    const evidence = evidenceReportSchema.parse(await response.json());
+    expect(evidence.overall).toBe("PASS");
+    expect(Object.values(evidence.checks).every((check) => check.status === "PASS")).toBe(true);
+    expect(evidence.counts).toMatchObject({
+      committedUses: 3,
+      externalActions: 3,
+      retryUsageDelta: 0,
+      retryActionDelta: 0,
+      failedAttemptUses: 0,
+    });
+    expect(evidence.uses.map((use) => use.receiptId).sort()).toEqual(beforeRejection.receipts);
+    expect(evidence.linkability.pairs.filter((pair) => pair.result === "UNLINKABLE")).toHaveLength(
+      3
+    );
+    expect(evidence.linkability.pairs.filter((pair) => pair.result === "SAME_USE")).toHaveLength(1);
+    const safeEvents = await (await request.get(`${apiBase}/v1/demo/events/stream`)).text();
+    const privateMarkers = wire
+      .map((body) => JSON.parse(body) as { opaqueProof: string; nullifier: string })
+      .flatMap((body) => [body.opaqueProof, body.nullifier]);
+    assertNoForbiddenData(
+      [evidence, beforeRejection.safePayloads, beforeRejection.safeRows, safeEvents],
+      { markers: privateMarkers }
+    );
+    await expect(page.getByTestId("protocol-trace")).toContainText("Retry");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
+    expect(errors).toEqual([]);
+    const elapsedMs = Date.now() - started;
+    expect(elapsedMs).toBeLessThan(180_000);
+    await testInfo.attach("rehearsal-evidence", {
+      body: JSON.stringify({ elapsedMs, evidence }),
+      contentType: "application/json",
+    });
+    await page.screenshot({ path: testInfo.outputPath("demo-lab.png"), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
+  });
+}
 
 test("Phase 5 preserves and exactly retries a use whose acknowledgement is lost", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle("AnonLimit — Safe Retry");
+  await expect(page).toHaveTitle("AnonLimit — Demo Lab");
   await expect(
-    page.getByRole("heading", { name: "Recover a lost acknowledgement", exact: true })
+    page.getByRole("heading", { name: "Three uses. Zero identity.", exact: true })
   ).toBeVisible();
   await expect(page.getByRole("status")).toHaveText("API and database connected");
 

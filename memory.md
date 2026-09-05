@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-06 (Asia/Calcutta).
 Project root: `D:/myonsite`.
-Current milestone: **Phases 0–7 complete; G7 Evidence P0 passed. Phase 8 is next.**
+Current milestone: **Phases 0–8 complete; G8 P0 lock passed. Phase 9 is deferred.**
 Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); Phase 7 implementation is committed at `ec391b6` (`feat: complete phase 7 evidence privacy`). This memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
@@ -33,11 +33,11 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | 5     | Safe retry                    | Complete; G5 passed                            |
 | 6     | Bound and rejection           | Complete; G6 Backend P0 passed                 |
 | 7     | Evidence and privacy          | Complete; G7 Evidence P0 passed                |
-| 8     | Judge experience / P0 lock    | Not started                                    |
+| 8     | Judge experience / P0 lock    | Complete; G8 passed                            |
 | 9     | P1 resilience                 | Deferred until G8; required for full project   |
 | 10    | Release and rehearsal         | Not started                                    |
 
-Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 8 is the next implementation slice.
+Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 9 is deferred until the P0 lock is protected.
 
 ## Implemented system
 
@@ -48,6 +48,8 @@ Codex is the integration owner. Responsibilities and dependencies are in [the ta
 - PostgreSQL keeps verifier and action schemas behind separate login roles. The migration runner uses advisory locking, transactions, ordering, and immutable checksums. The seed creates one active three-use policy and demo run.
 - The verifier atomically accepts a valid presentation and creates an outbox item. The leased worker delivers it to the private Action Simulator and atomically stores the stable receipt.
 - The React wallet issues one credential, stores it in IndexedDB, submits real presentations, resumes pending results after refresh, and shows only browser-local slot availability.
+- The Phase 8 Demo Lab presents reset, issuance, each use, lost acknowledgement, exact retry, controlled fourth-use rejection, and privacy audit controls. Its metrics come from `GET /v1/demo/evidence`; its trace replays strict safe events from `/v1/demo/events/stream`; masked records, invariant statuses, linkability comparisons, and opaque-crypto assumptions share the same responsive page.
+- The demo-only boundary probe authenticates an out-of-range simulator presentation through the ordinary verifier and exposes only `PRESENTATION_REJECTED`; no browser credential or raw proof is sent to that endpoint. Seed startup is idempotent after a server-owned reset, and migration 0006 aligns the SQL evidence view's SHA256 mask with API/events.
 - Safe serializers and logging allowlists exclude arbitrary fields, proofs, nullifiers, credential material, request paths/query strings, authorization values, and browser identity.
 
 ## Phase 5 safe retry
@@ -81,7 +83,19 @@ Detailed Phase 5 behavior and evidence: [Phase 5 record](docs/phase-5-safe-retry
 - Issuance, rejection, conflict, retry, worker, reset, and privacy-audit transitions use an allowlisted protocol event schema. `GET /v1/demo/events/stream` emits finite safe replay batches and accepts either `after` or `Last-Event-ID` cursors.
 - `POST /v1/demo/linkability-test` validates transient wallet presentations against the active run and accepted uses, compares every distinct-use pair as `UNLINKABLE`, and compares an exact duplicate as `SAME_USE`. Raw presentations and grouping labels are discarded after the request. Missing audit support produces `INCOMPLETE`, never PASS.
 - `packages/testing/src/scanners/forbidden-data.ts` scans structured rows, logs, events, outbox payloads, API/evidence objects, exports, and imports without printing secret values. `pnpm audit:privacy` scans the generated browser asset for local secret markers; protocol field names required by holder-only code are not treated as leaked values.
-- The complete Phase 7 record is [here](docs/phase-7-evidence-privacy.md). Phase 8 now owns the guided Demo Lab, evidence panels, linkability matrix, and P0 browser rehearsal.
+- The complete Phase 7 record is [here](docs/phase-7-evidence-privacy.md). Phase 8 completed the guided Demo Lab, evidence panels, linkability matrix, and P0 browser rehearsal.
+
+## Phase 8 guided Demo Lab and P0 lock
+
+- `apps/web/src/main.tsx` now hosts the responsive Demo Lab. `features/demo-lab/panels.tsx` renders loading, live event, sanitized evidence, invariant, linkability, and assumptions panels. `features/demo-lab/use-evidence.ts` polls the evidence endpoint and replays strict finite SSE batches with run-aware cursors.
+- `features/wallet/wallet-service.ts` exposes a transient audit helper that sends only accepted wallet presentations and their exact retry duplicate; the browser retains raw material locally and the server discards it after the audit.
+- `POST /v1/demo/attempt-fourth-use` is a demo-only controlled boundary probe. It selects the active server run and policy, constructs an authenticated out-of-range simulator presentation, and submits it through the normal verifier. The public response is the standard rejection with zero deltas.
+- `tests/e2e/golden-demo.spec.ts` contains two complete real rehearsals. Each resets the server, drives the browser flow, refreshes the unknown outcome, verifies byte-identical retry, checks direct PostgreSQL ledger counts and receipts, checks sanitized evidence/events for captured raw markers, runs the audit, and checks desktop/mobile width, keyboard activation, and no page errors. The narration is [docs/demo-script.md](docs/demo-script.md).
+- Evidence now fails closed when event/ledger coverage is missing, reports `INCOMPLETE` when the audit adapter is unavailable, requires exact retry bytes and `RETRY_MATCHED`, and uses one repeatable-read verifier snapshot. Action completion events carry the same masked use reference as the SQL/API evidence view.
+
+### G8 verification observed on 2026-09-06
+
+`pnpm test:e2e`: 5 passed (two Phase 8 rehearsals in 9.2s and 8.0s, plus three wallet recovery regressions) against rebuilt Compose services. `pnpm test:integration`: 33 passed across nine files, including the new boundary integration. `pnpm test:unit`: 309 passed. `pnpm test:contract`: 9 passed. `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and `pnpm audit:privacy` passed. Docker Compose rebuilt the shared image, applied migration 0006, ran seed successfully after reset, and all five runtime services became healthy. Cumulative evidence and privacy checks remain available through the existing `check:phase7` command; Phase 9 concurrency/crash work and Phase 10 release rehearsal remain outstanding.
 
 ## Verification observed on 2026-09-06
 
@@ -89,15 +103,15 @@ Detailed Phase 5 behavior and evidence: [Phase 5 record](docs/phase-5-safe-retry
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Node / pnpm               | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                                                    |
 | Docker / Compose          | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                                                              |
-| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration and seed exited 0                                                                   |
+| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration 0006 and seed exited 0 after reset                                                  |
 | `pnpm check:phase7`       | Passed formatting, lint, strict type checks, builds, 297 unit, 9 contract, 30 cumulative phase-gate integration, 24 privacy tests, and browser asset scan |
 | `pnpm test:integration`   | 32 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                                                             |
-| `pnpm test:e2e`           | 3 passed: durable lost-ack recovery, stored resend as first arrival, and expired-unaccepted proof rebuild                                                 |
+| `pnpm test:e2e`           | 5 passed: two complete Phase 8 rehearsals plus durable lost-ack recovery, stored resend, and expired-unaccepted proof rebuild                             |
 | Existing-volume migration | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                                                    |
 | Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned                                             |
 | Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                                                   |
 | Phase 6 golden scenario   | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                                                  |
-| Phase 7 integration       | Passed sanitized-view, run-scoped Action Simulator evidence, safe SSE cursor, and API boundary tests (3 tests)                                            |
+| Phase 7/8 integration     | 33 passed, including sanitized evidence/view, safe SSE cursor, API boundary, and real authenticated fourth-use rejection                                  |
 | Hosted CI                 | Phase 7 workflow configured; hosted execution has not been observed                                                                                       |
 
 The immutable verifier migration digests in the persistent database are:
@@ -109,7 +123,7 @@ The immutable verifier migration digests in the persistent database are:
 
 `0003` was first applied with a trailing blank line. Its bytes are intentionally preserved, and `.gitattributes` disables only Git's blank-at-EOF warning for that immutable file.
 
-G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. G6 now certifies all three uses, the fourth-use rejection, and the server-owned reset. G7 certifies the backend-derived evidence boundary and privacy scan; the guided UI and release rehearsal remain later phases.
+G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. G6 certifies all three uses, the fourth-use rejection, and the server-owned reset. G7 certifies the backend-derived evidence boundary and privacy scan. G8 now certifies the responsive browser flow and real all-PASS evidence rehearsal. Phase 9 and Phase 10 remain later phases.
 
 ## Local setup and Docker recovery
 

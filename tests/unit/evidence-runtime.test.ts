@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type ProtocolEvent } from "@anonlimit/contracts";
+import { type Presentation, type ProtocolEvent } from "@anonlimit/contracts";
+import type { AuditAdapter } from "@anonlimit/crypto/audit";
 import { computeScopeHash, type Receipt } from "@anonlimit/domain";
-import { createEvidenceController } from "../../apps/api/src/modules/evidence/evidence-controller.js";
+import {
+  createEvidenceController,
+  type EvidenceRepository,
+} from "../../apps/api/src/modules/evidence/evidence-controller.js";
 import { createEventStreamController } from "../../apps/api/src/modules/events/events-controller.js";
 import { type VerifierEvidenceSnapshot } from "../../packages/db/src/verifier/evidence.queries.js";
 
@@ -37,12 +41,12 @@ function event(sequence: number, name: ProtocolEvent["event"], useRef?: string):
     sequence,
     occurredAt: "2026-09-05T00:00:00.000Z",
     event: name,
-    traceId: `70000000-0000-4000-8000-00000000030${sequence}`,
+    traceId: `70000000-0000-4000-8000-${String(300 + sequence).padStart(12, "0")}`,
     demoRunId: runId,
     policyId: policy.id,
     policyVersion: policy.version,
     usageDelta: name === "USE_ACCEPTED" ? 1 : 0,
-    actionDelta: 0,
+    actionDelta: name === "EXTERNAL_ACTION_COMMITTED" ? 1 : 0,
     ...(useRef === undefined ? {} : { maskedUseRef: useRef }),
   };
 }
@@ -63,7 +67,7 @@ function snapshot(): VerifierEvidenceSnapshot {
         receipt: item,
       },
       actionKey: item.actionKey,
-      maskedUseRef: `use_${String(index).repeat(12)}`,
+      maskedUseRef: `use_${digest(useId).slice(0, 12)}`,
     };
   });
   return {
@@ -74,8 +78,20 @@ function snapshot(): VerifierEvidenceSnapshot {
     outboxUseIds: records.map((record) => record.acceptedUse.useId),
     events: [
       event(1, "CREDENTIAL_ISSUED"),
-      event(2, "RETRY_MATCHED", records[1]?.maskedUseRef),
-      event(3, "OVER_LIMIT_REJECTED"),
+      ...records.flatMap((record, index) => [
+        event(index * 2 + 2, "USE_ACCEPTED", record.maskedUseRef),
+        event(index * 2 + 3, "EXTERNAL_ACTION_COMMITTED", record.maskedUseRef),
+      ]),
+      event(8, "RETRY_MATCHED", records[1]?.maskedUseRef),
+      {
+        ...event(9, "RETRY_RESOLVED", records[1]?.maskedUseRef),
+        traceId: event(8, "RETRY_MATCHED").traceId,
+      },
+      {
+        ...event(10, "CACHED_RECEIPT_RETURNED", records[1]?.maskedUseRef),
+        traceId: event(8, "RETRY_MATCHED").traceId,
+      },
+      event(11, "OVER_LIMIT_REJECTED"),
     ],
     privacy: { storedHolderIdentities: 0, credentialWideIdentifiersStored: 0 },
   };
@@ -86,11 +102,17 @@ function digest(value: string): string {
 }
 
 function auditPresentations(data: VerifierEvidenceSnapshot): {
-  readonly presentations: readonly Record<string, unknown>[];
-  readonly challenges: ReadonlyMap<string, Record<string, unknown>>;
+  readonly presentations: readonly Presentation[];
+  readonly challenges: ReadonlyMap<
+    string,
+    NonNullable<Awaited<ReturnType<EvidenceRepository["getChallenge"]>>>
+  >;
 } {
-  const challenges = new Map<string, Record<string, unknown>>();
-  const presentations = data.uses.map((record, index) => {
+  const challenges = new Map<
+    string,
+    NonNullable<Awaited<ReturnType<EvidenceRepository["getChallenge"]>>>
+  >();
+  const presentations = data.uses.map((record, index): Presentation => {
     const challengeId = `70000000-0000-4000-8000-00000000050${index + 1}`;
     const nonce = String(index + 1).repeat(64);
     const challenge = {
@@ -120,8 +142,72 @@ function auditPresentations(data: VerifierEvidenceSnapshot): {
     };
   });
   return {
-    presentations: [...presentations, presentations[1] as Record<string, unknown>],
+    presentations: [...presentations, presentations[1] as Presentation],
     challenges,
+  };
+}
+
+const workingAudit: AuditAdapter = {
+  testLinkability: async (left, right) => ({
+    ok: true,
+    result:
+      left.presentation.nullifier === right.presentation.nullifier ? "SAME_USE" : "UNLINKABLE",
+    basis: "SIMULATED_PROVIDER_ASSUMPTION",
+  }),
+};
+
+async function fixture(adapter: AuditAdapter = workingAudit) {
+  const source = snapshot();
+  const scopeHash = await computeScopeHash(policy, async (value) => digest(value));
+  let data: VerifierEvidenceSnapshot = {
+    ...source,
+    uses: source.uses.map((record) => ({
+      ...record,
+      acceptedUse: { ...record.acceptedUse, scopeHash },
+    })),
+  };
+  const { presentations, challenges } = auditPresentations(data);
+  const controller = createEvidenceController({
+    repository: {
+      getEvidenceSnapshot: async () => data,
+      getChallenge: async (challengeId) => challenges.get(challengeId) ?? null,
+      findAcceptedUses: async (input) => ({
+        byNullifier:
+          data.uses.find((record) => record.acceptedUse.nullifierKey === input.nullifierKey)
+            ?.acceptedUse ?? null,
+        byOperation:
+          data.uses.find((record) => record.acceptedUse.operationId === input.operationId)
+            ?.acceptedUse ?? null,
+      }),
+    },
+    actionClient: {
+      getEvidence: async () => ({
+        externalActions: data.uses.length,
+        receipts: data.uses.flatMap((record) =>
+          record.acceptedUse.status === "SUCCEEDED" ? [record.acceptedUse.receipt] : []
+        ),
+      }),
+    },
+    auditAdapter: adapter,
+    issuerPublicParameters: {
+      provider: "SIMULATED_CAPABILITIES_V1",
+      issuerKeyId: policy.issuerKeyId,
+    },
+    lookupProtection: {
+      protectNullifier: async ({ rawNullifier }) => `hmac-sha256:${rawNullifier}`,
+    },
+    sha256Hex: async (value) => digest(value),
+    now: () => Date.parse("2026-09-05T00:00:00.000Z"),
+  });
+  return {
+    controller,
+    presentations,
+    get data() {
+      return data;
+    },
+    setData(value: VerifierEvidenceSnapshot) {
+      data = value;
+    },
   };
 }
 
@@ -175,6 +261,87 @@ describe("Phase 7 evidence runtime", () => {
     expect(frame.endsWith("\n\n")).toBe(true);
   });
 
+  it("cannot turn missing transactional evidence into zero retry deltas", async () => {
+    const test = await fixture();
+    test.setData({
+      ...test.data,
+      events: test.data.events.filter((item) => item.event !== "USE_ACCEPTED"),
+    });
+    const report = await test.controller.getEvidence();
+    expect(report.checks.retryIdempotency.status).toBe("INCOMPLETE");
+    expect(report.checks.overLimitRejected.status).toBe("INCOMPLETE");
+    expect(report.counts.retryUsageDelta).toBeNull();
+  });
+
+  it("measures extra acceptance under a retry trace instead of fabricating unchanged totals", async () => {
+    const test = await fixture();
+    const retry = test.data.events.find((item) => item.event === "RETRY_MATCHED");
+    if (!retry) throw new Error("TEST_FIXTURE_INVALID");
+    test.setData({
+      ...test.data,
+      events: test.data.events.map((item) =>
+        item.event === "USE_ACCEPTED" && item.maskedUseRef === test.data.uses[2]?.maskedUseRef
+          ? { ...item, traceId: retry.traceId }
+          : item
+      ),
+    });
+    const report = await test.controller.getEvidence();
+    expect(report.checks.retryIdempotency.status).toBe("FAIL");
+    expect(report.counts.retryUsageDelta).toBe(1);
+    expect(report.overall).toBe("FAIL");
+  });
+
+  it("cannot accept an incomplete retry event chain", async () => {
+    const test = await fixture();
+    test.setData({
+      ...test.data,
+      events: test.data.events.filter((item) => item.event !== "RETRY_RESOLVED"),
+    });
+    const report = await test.controller.getEvidence();
+    expect(report.checks.retryIdempotency.status).toBe("INCOMPLETE");
+    expect(report.counts.retryUsageDelta).toBeNull();
+  });
+
+  it.each(["throws", "rejects"])(
+    "keeps unavailable audit output incomplete when the adapter %s",
+    async (mode) => {
+      const test = await fixture({
+        testLinkability: async () => {
+          if (mode === "throws") throw new Error("ADAPTER_UNAVAILABLE");
+          return { ok: false, code: "PRESENTATION_REJECTED" };
+        },
+      });
+      expect(
+        await test.controller.runLinkability({ presentations: test.presentations }, TRACE_ID)
+      ).toEqual({ status: "INCOMPLETE", pairs: [] });
+      expect((await test.controller.getEvidence()).overall).toBe("INCOMPLETE");
+    }
+  );
+
+  it("does not count a different proof for the same use as an exact replay", async () => {
+    const test = await fixture();
+    const presentations = test.presentations.map((presentation, index) =>
+      index === 3
+        ? { ...presentation, opaqueProof: presentation.opaqueProof + "changed" }
+        : presentation
+    );
+    expect(await test.controller.runLinkability({ presentations }, TRACE_ID)).toEqual({
+      status: "INCOMPLETE",
+      pairs: [],
+    });
+  });
+
+  it("requires a recorded verifier retry before claiming retry recognition", async () => {
+    const test = await fixture();
+    test.setData({
+      ...test.data,
+      events: test.data.events.filter((item) => item.event !== "RETRY_MATCHED"),
+    });
+    expect(
+      await test.controller.runLinkability({ presentations: test.presentations }, TRACE_ID)
+    ).toEqual({ status: "INCOMPLETE", pairs: [] });
+  });
+
   it("runs all distinct-use pairs and recognizes only the exact retry", async () => {
     const source = snapshot();
     const actualScopeHash = await computeScopeHash(policy, async (value) => digest(value));
@@ -196,7 +363,7 @@ describe("Phase 7 evidence runtime", () => {
     const controller = createEvidenceController({
       repository: {
         getEvidenceSnapshot: async () => data,
-        getChallenge: async (challengeId) => challenges.get(challengeId) as never,
+        getChallenge: async (challengeId) => challenges.get(challengeId) ?? null,
         findAcceptedUses: async (input) => {
           const record = byOperation.get(input.operationId) ?? byNullifier.get(input.nullifierKey);
           return {

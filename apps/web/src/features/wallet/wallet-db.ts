@@ -159,13 +159,19 @@ export async function saveCredentialIfAbsent(record: WalletCredentialRecord): Pr
 }
 
 export async function readLatestOperation(): Promise<PendingOperationRecord | null> {
+  const records = await readWalletOperations();
+  records.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return records[0] ?? null;
+}
+
+/** Private browser history; callers must never export local handles or slot indices. */
+export async function readWalletOperations(): Promise<PendingOperationRecord[]> {
   const database = await openDatabase();
   try {
     const records = (await requestResult(
       database.transaction(OPERATIONS_STORE).objectStore(OPERATIONS_STORE).getAll()
     )) as PendingOperationRecord[];
-    records.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-    return records[0] ?? null;
+    return records;
   } finally {
     database.close();
   }

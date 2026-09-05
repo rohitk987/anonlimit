@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import {
   actionKeySchema,
+  actionSchema,
   digestSchema,
   eventNameSchema,
   protocolEventSchema,
+  receiptSchema,
   timestampSchema,
   uuidSchema,
   type ProtocolEvent,
@@ -116,6 +118,7 @@ function record(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 function receiptFrom(value: unknown, useId: string, actionKey: string): Receipt {
+  receiptSchema.parse(value);
   if (
     !record(value) ||
     typeof value.receiptId !== "string" ||
@@ -287,69 +290,83 @@ export function createVerifierEvidenceQueries(pool: pg.Pool) {
   };
 
   const getEvidenceSnapshot = async (): Promise<VerifierEvidenceSnapshot | null> => {
-    const runResult = await pool.query<{ demo_run_id: string }>(
-      "SELECT demo_run_id FROM verifier.demo_runs WHERE status = 'ACTIVE'"
-    );
-    if (runResult.rows.length !== 1) {
-      if (runResult.rows.length === 0) return null;
-      throw new Error("DATABASE_INCONSISTENT");
-    }
-    const demoRunId = uuidSchema.parse(runResult.rows[0]?.demo_run_id);
-    const policyResult = await pool.query<PolicyRow>(
-      `${POLICY_SELECT}
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const runResult = await client.query<{ demo_run_id: string }>(
+        "SELECT demo_run_id FROM verifier.demo_runs WHERE status = 'ACTIVE'"
+      );
+      if (runResult.rows.length !== 1) {
+        if (runResult.rows.length === 0) {
+          await client.query("COMMIT");
+          return null;
+        }
+        throw new Error("DATABASE_INCONSISTENT");
+      }
+      const demoRunId = uuidSchema.parse(runResult.rows[0]?.demo_run_id);
+      const policyResult = await client.query<PolicyRow>(
+        `${POLICY_SELECT}
        WHERE status = 'ACTIVE' AND now() >= not_before AND now() < expires_at
        ORDER BY version DESC LIMIT 1`
-    );
-    const policyRow = policyResult.rows[0];
-    if (!policyRow) throw new Error("DATABASE_NOT_READY");
-    const policy = policyFromRow(policyRow);
-    const [useResult, outboxResult, eventResult, issuanceResult, privacyResult] = await Promise.all(
-      [
-        pool.query<UseRow>(`${USE_SELECT} WHERE demo_run_id = $1 ORDER BY use_id`, [demoRunId]),
-        pool.query<{ use_id: string }>(
-          `SELECT o.use_id
+      );
+      const policyRow = policyResult.rows[0];
+      if (!policyRow) throw new Error("DATABASE_NOT_READY");
+      const policy = policyFromRow(policyRow);
+      const [useResult, outboxResult, eventResult, issuanceResult, privacyResult] =
+        await Promise.all([
+          client.query<UseRow>(`${USE_SELECT} WHERE demo_run_id = $1 ORDER BY use_id`, [demoRunId]),
+          client.query<{ use_id: string; safe_payload: unknown }>(
+            `SELECT o.use_id, o.safe_payload
          FROM verifier.outbox_events AS o
          JOIN verifier.use_records AS u ON u.use_id = o.use_id
          WHERE u.demo_run_id = $1
          ORDER BY o.created_at, o.event_id`,
-          [demoRunId]
-        ),
-        pool.query<EventRow>(`${EVENT_SELECT} WHERE demo_run_id = $1 ORDER BY sequence`, [
-          demoRunId,
-        ]),
-        pool.query<{ count: number }>(
-          "SELECT count(*)::integer AS count FROM verifier.protocol_events WHERE demo_run_id = $1 AND event_name = 'CREDENTIAL_ISSUED'",
-          [demoRunId]
-        ),
-        pool.query<{ holder_identities: number; credential_identifiers: number }>(
-          `SELECT
+            [demoRunId]
+          ),
+          client.query<EventRow>(`${EVENT_SELECT} WHERE demo_run_id = $1 ORDER BY sequence`, [
+            demoRunId,
+          ]),
+          client.query<{ count: number }>(
+            "SELECT count(*)::integer AS count FROM verifier.protocol_events WHERE demo_run_id = $1 AND event_name = 'CREDENTIAL_ISSUED'",
+            [demoRunId]
+          ),
+          client.query<{ holder_identities: number; credential_identifiers: number }>(
+            `SELECT
            count(*) FILTER (WHERE column_name ~* '(holder|user|subject|identity|email|account)')::integer AS holder_identities,
            count(*) FILTER (WHERE column_name ~* '(credential(_|)id|credential(_|)serial|serial(_|)number)')::integer AS credential_identifiers
          FROM information_schema.columns
          WHERE table_schema = 'verifier'
            AND table_name IN ('demo_runs','quota_policies','verification_challenges','use_records','outbox_events','protocol_events','demo_faults')`
-        ),
-      ]
-    );
-    const uses = useResult.rows.map((row) => ({
-      acceptedUse: acceptedUseFromRow(row),
-      actionKey: actionKeySchema.parse(row.action_key),
-      maskedUseRef: maskedUseRef(uuidSchema.parse(row.use_id)),
-    }));
-    const privacy = privacyResult.rows[0];
-    if (!privacy) throw new Error("DATABASE_INCONSISTENT");
-    return {
-      demoRunId,
-      policy,
-      credentialIssuances: issuanceResult.rows[0]?.count ?? null,
-      uses,
-      outboxUseIds: outboxResult.rows.map((row) => uuidSchema.parse(row.use_id)),
-      events: eventResult.rows.map(eventFromRow),
-      privacy: {
-        storedHolderIdentities: privacy.holder_identities,
-        credentialWideIdentifiersStored: privacy.credential_identifiers,
-      },
-    };
+          ),
+        ]);
+      const uses = useResult.rows.map((row) => ({
+        acceptedUse: acceptedUseFromRow(row),
+        actionKey: actionKeySchema.parse(row.action_key),
+        maskedUseRef: maskedUseRef(uuidSchema.parse(row.use_id)),
+      }));
+      const privacy = privacyResult.rows[0];
+      if (!privacy) throw new Error("DATABASE_INCONSISTENT");
+      for (const row of outboxResult.rows) actionSchema.parse(row.safe_payload);
+      const snapshot = {
+        demoRunId,
+        policy,
+        credentialIssuances: issuanceResult.rows[0]?.count ?? null,
+        uses,
+        outboxUseIds: outboxResult.rows.map((row) => uuidSchema.parse(row.use_id)),
+        events: eventResult.rows.map(eventFromRow),
+        privacy: {
+          storedHolderIdentities: privacy.holder_identities,
+          credentialWideIdentifiersStored: privacy.credential_identifiers,
+        },
+      };
+      await client.query("COMMIT");
+      return snapshot;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   return { appendProtocolEvent, getEvidenceSnapshot, getProtocolEvents };

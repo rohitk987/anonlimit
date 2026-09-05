@@ -14,6 +14,7 @@ import type { LostAckFaultController } from "./modules/demo/fault-controller.js"
 import type { DemoResetController } from "./modules/demo/reset-demo.js";
 import type { EvidenceController } from "./modules/evidence/evidence-controller.js";
 import type { EventStreamController } from "./modules/events/events-controller.js";
+import type { DemoBoundaryController } from "./modules/demo/boundary-controller.js";
 
 function ownCode(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -30,7 +31,8 @@ export function createApp(
   faultController?: LostAckFaultController,
   resetController?: DemoResetController,
   evidenceController?: EvidenceController,
-  eventController?: EventStreamController
+  eventController?: EventStreamController,
+  boundaryController?: DemoBoundaryController
 ): FastifyInstance {
   const logger: FastifyBaseLogger = createSafeLogger(config.logLevel);
   const app = Fastify({
@@ -101,8 +103,19 @@ export function createApp(
   if (protocolService) registerProtocolRoutes(app, protocolService, enabledFaultController);
   if (
     config.demoMode &&
-    (faultController || resetController || evidenceController || eventController)
+    (faultController ||
+      resetController ||
+      evidenceController ||
+      eventController ||
+      boundaryController)
   )
-    registerDemoRoutes(app, faultController, resetController, evidenceController, eventController);
+    registerDemoRoutes(
+      app,
+      faultController,
+      resetController,
+      evidenceController,
+      eventController,
+      boundaryController
+    );
   return app;
 }

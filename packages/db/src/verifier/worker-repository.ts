@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   actionSchema,
   internalActionResponseSchema,
@@ -145,10 +145,17 @@ export function createWorkerDatabase(connectionString: string): WorkerDatabase {
       await client.query(
         `INSERT INTO verifier.protocol_events (
            event_id, event_name, trace_id, demo_run_id, policy_id, policy_version,
-           from_state, to_state, decision_code, usage_delta, action_delta
+           from_state, to_state, decision_code, usage_delta, action_delta, masked_use_ref
          ) VALUES ($1,'EXTERNAL_ACTION_COMMITTED',$2,$3,$4,$5,
-                   'ACCEPTED_PENDING_ACTION','SUCCEEDED','EXTERNAL_ACTION_COMMITTED',0,1)`,
-        [randomUUID(), randomUUID(), row.demo_run_id, row.policy_id, row.policy_version]
+                   'ACCEPTED_PENDING_ACTION','SUCCEEDED','EXTERNAL_ACTION_COMMITTED',0,1,$6)`,
+        [
+          randomUUID(),
+          randomUUID(),
+          row.demo_run_id,
+          row.policy_id,
+          row.policy_version,
+          `use_${createHash("sha256").update(row.use_id, "utf8").digest("hex").slice(0, 12)}`,
+        ]
       );
       await client.query("COMMIT");
     } catch (error) {

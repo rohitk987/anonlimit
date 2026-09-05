@@ -7,10 +7,13 @@ function cursor(request: FastifyRequest): number {
   const query = eventStreamQuerySchema.safeParse(request.query);
   if (!query.success) throw new ProtocolPublicError("BAD_REQUEST");
   const header = request.headers["last-event-id"];
-  const headerValue = Array.isArray(header) ? undefined : header;
+  if (Array.isArray(header)) throw new ProtocolPublicError("BAD_REQUEST");
+  const headerValue = header;
   const queryValue = query.data.after;
-  const selected = queryValue ?? headerValue;
+  const selected = headerValue ?? queryValue;
   if (selected === undefined) return 0;
+  if (!eventStreamQuerySchema.safeParse({ after: selected }).success)
+    throw new ProtocolPublicError("BAD_REQUEST");
   const parsed = Number(selected);
   if (!Number.isSafeInteger(parsed) || parsed < 0) throw new ProtocolPublicError("BAD_REQUEST");
   return parsed;
@@ -22,7 +25,7 @@ export function registerEventRoutes(app: FastifyInstance, controller: EventStrea
     return reply
       .code(200)
       .header("Content-Type", "text/event-stream; charset=utf-8")
-      .header("Cache-Control", "no-cache")
+      .header("Cache-Control", "no-store")
       .header("X-Content-Type-Options", "nosniff")
       .send(controller.format(events));
   });

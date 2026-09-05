@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { parseClientEnv } from "@anonlimit/config/client";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
-import { createApiClient } from "./lib/api-client.js";
+import { ApiResponseError, createApiClient } from "./lib/api-client.js";
+import { EvidencePanels } from "./features/demo-lab/panels.js";
+import { useEvidence } from "./features/demo-lab/use-evidence.js";
 import {
   armNextWalletDropAck,
+  auditWalletUses,
   issueWalletCredential,
   loadWallet,
   performWalletUse,
@@ -24,6 +27,9 @@ function App() {
   const [connection, setConnection] = useState("Checking connection");
   const [message, setMessage] = useState("Issue a pass to begin.");
   const [busy, setBusy] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [boundaryRejected, setBoundaryRejected] = useState(false);
+  const { evidence, events, streamState } = useEvidence(client, config.demoMode, refreshKey);
 
   useEffect(() => {
     let active = true;
@@ -93,6 +99,8 @@ function App() {
     try {
       const next = await resetWalletDemo(client);
       setSnapshot(next);
+      setBoundaryRejected(false);
+      setRefreshKey((value) => value + 1);
       setMessage("Demo run reset. This browser wallet is clear; issue a new pass.");
     } catch {
       setMessage("Reset failed. The local wallet was kept.");
@@ -143,6 +151,48 @@ function App() {
     }
   }
 
+  async function probeBoundary() {
+    setBusy(true);
+    setBoundaryRejected(false);
+    setMessage("Sending an authenticated simulator boundary probe…");
+    try {
+      await client.attemptFourthUse();
+      setMessage("Boundary check failed: the verifier did not reject the probe.");
+    } catch (error) {
+      if (
+        error instanceof ApiResponseError &&
+        error.status === 422 &&
+        error.code === "PRESENTATION_REJECTED"
+      ) {
+        setBoundaryRejected(true);
+        setMessage("Fourth-use probe rejected. Inspect the backend evidence for unchanged counts.");
+      } else {
+        setMessage("Boundary probe unavailable. Retry when the services are connected.");
+      }
+    } finally {
+      setBusy(false);
+      setRefreshKey((value) => value + 1);
+    }
+  }
+
+  async function runAudit() {
+    setBusy(true);
+    setMessage("Auditing accepted presentations through the opaque simulator…");
+    try {
+      const audit = await auditWalletUses(client);
+      setMessage(
+        audit.status === "PASS"
+          ? "Pairwise audit passed. The invariant panel combines it with backend evidence."
+          : `Audit ${audit.status}. Inspect the evidence and retry when the scenario is complete.`
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Audit unavailable. Please retry.");
+    } finally {
+      setBusy(false);
+      setRefreshKey((value) => value + 1);
+    }
+  }
+
   async function retryLast() {
     setBusy(true);
     setMessage("Retrying the exact stored request…");
@@ -185,8 +235,22 @@ function App() {
   const receipt = operation?.result?.status === "SUCCEEDED" ? operation.result.receipt : null;
   const unresolved = operation?.state === "PENDING" || operation?.state === "OUTCOME_UNKNOWN";
   const faultArmed = Boolean(credential?.preparedOperationId);
-  const protocolState =
-    operation?.state === "OUTCOME_UNKNOWN"
+  const staleWallet = Boolean(
+    credential && evidence && credential.demoRunId !== evidence.demoRunId
+  );
+  const controlsDisabled = busy || staleWallet;
+  const tone = boundaryRejected
+    ? "rejection"
+    : operation?.state === "OUTCOME_UNKNOWN"
+      ? "unknown"
+      : operation?.retryResult?.replayed
+        ? "retry"
+        : operation?.state === "SUCCEEDED"
+          ? "acceptance"
+          : "neutral";
+  const protocolState = boundaryRejected
+    ? "FOURTH USE REJECTED · NO ACCEPTANCE"
+    : operation?.state === "OUTCOME_UNKNOWN"
       ? operation.dropAckArmed
         ? "ACKNOWLEDGEMENT DROPPED · OUTCOME UNKNOWN"
         : "RESPONSE LOST · OUTCOME UNKNOWN"
@@ -207,122 +271,173 @@ function App() {
                     : "READY";
 
   return (
-    <main>
-      <header>
+    <main className="shell">
+      <a className="skip-link" href="#controls">
+        Skip to demo controls
+      </a>
+      <header className="lab-header">
         <a className="brand" href="/">
           Anon<span>Limit</span>
           <span className="mark" aria-hidden="true">
             ↗
           </span>
         </a>
-        <span className="badge">LOCAL DEVELOPMENT</span>
+        <span className="badge">DEMO LAB / P0</span>
+        <span className="connection" role="status" data-testid="connection">
+          {connection}
+        </span>
       </header>
       <section className="intro">
-        <p className="eyebrow">BOUNDED USE. PRIVATE BY DESIGN.</p>
+        <p className="eyebrow">THE PRIVACY PARADOX</p>
         <h1>
-          Three uses.
+          Limit the use.
           <br />
-          <span>One stable receipt.</span>
+          <span>Leave the person unknown.</span>
         </h1>
         <p className="description">
-          Lose a network response after a durable action, then recover the same receipt without
-          spending another anonymous use.
+          One anonymous pass. Three article views. Recover a lost response without spending another
+          use, then inspect what the verifier actually knows.
         </p>
       </section>
-      <section className="wallet" aria-labelledby="wallet-title">
-        <div className="wallet-heading">
-          <div>
-            <p className="eyebrow">PHASE 05 / SAFE RETRY</p>
-            <h2 id="wallet-title">Recover a lost acknowledgement</h2>
-          </div>
-          <span className="connection" role="status" aria-live="polite">
-            {connection}
-          </span>
-        </div>
-        <p className="wallet-copy">
-          The wallet stores the exact serialized request before sending it. An unknown outcome keeps
-          the same slot reserved until that request is retried.
-        </p>
-        <p className="protocol-state" aria-live="polite">
-          {protocolState}
-        </p>
-        <div className="actions">
-          <button
-            type="button"
-            onClick={() => void issue()}
-            disabled={busy || Boolean(credential) || unresolved}
-          >
-            Issue anonymous pass
-          </button>
-          {config.demoMode ? (
-            <button type="button" onClick={() => void resetDemo()} disabled={busy}>
-              Reset demo run
-            </button>
-          ) : null}
-          {config.demoMode ? (
-            <button
-              type="button"
-              onClick={() => void armDropAck()}
-              disabled={busy || !credential || remaining === 0 || unresolved || faultArmed}
-            >
-              Drop next acknowledgement
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void useNext()}
-            disabled={busy || !credential || remaining === 0 || unresolved}
-          >
-            Use next slot
-          </button>
-          <button type="button" onClick={() => void retryLast()} disabled={busy || !unresolved}>
-            Retry last request
-          </button>
-        </div>
-        <div className="wallet-grid">
-          <article>
-            <span className="index">WALLET</span>
-            <strong>{credential ? "Credential ready" : "No credential"}</strong>
-            <p>
-              {credential
-                ? `${remaining} of ${credential.policy.maxUses} uses available`
-                : "Issue a pass to create local slots."}
+      <div className="lab-grid">
+        <aside className="sidebar">
+          <section className="panel" id="controls" aria-labelledby="guide-title">
+            <p className="eyebrow">01 / GUIDED EXPERIMENT</p>
+            <h2 id="guide-title">Three uses. Zero identity.</h2>
+            <p className="muted">
+              Reset → issue → use one → drop acknowledgement → use two → retry → use three →
+              boundary probe → audit.
             </p>
-          </article>
-          <article>
-            <span className="index">OPERATION</span>
-            <strong>{operation?.state ?? "IDLE"}</strong>
-            <p>{message}</p>
-          </article>
-          <article>
-            <span className="index">RECEIPT</span>
-            <strong>{receipt ? "COMMITTED" : "Awaiting action"}</strong>
-            <p>{receipt ? receipt.receiptId : "The worker will return a stable receipt here."}</p>
-          </article>
-        </div>
-      </section>
-      <section className="principles" aria-label="Protocol boundaries">
-        <article>
-          <span className="index">01 / HOLDER</span>
-          <h3>Local wallet</h3>
-          <p>Credential, slots, and pending envelope persist in IndexedDB.</p>
-        </article>
-        <article>
-          <span className="index">02 / VERIFIER</span>
-          <h3>Durable acceptance</h3>
-          <p>PostgreSQL records one accepted use and one outbox event.</p>
-        </article>
-        <article>
-          <span className="index">03 / ACTION</span>
-          <h3>Idempotent destination</h3>
-          <p>The same action key returns the same receipt on retry.</p>
-        </article>
-      </section>
+            {staleWallet ? (
+              <p role="alert">
+                This wallet belongs to an earlier demo run. Reset to start a consistent scenario.
+              </p>
+            ) : null}
+            <div className="control-stack">
+              <button
+                className="button-primary"
+                type="button"
+                onClick={() => void issue()}
+                disabled={controlsDisabled || Boolean(credential) || unresolved}
+              >
+                Issue anonymous pass
+              </button>
+              <button
+                className="button-primary"
+                type="button"
+                onClick={() => void useNext()}
+                disabled={controlsDisabled || !credential || remaining === 0 || unresolved}
+              >
+                Use next slot
+              </button>
+              {config.demoMode ? (
+                <button
+                  type="button"
+                  onClick={() => void armDropAck()}
+                  disabled={
+                    controlsDisabled || !credential || remaining === 0 || unresolved || faultArmed
+                  }
+                >
+                  Drop next acknowledgement
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void retryLast()}
+                disabled={controlsDisabled || !unresolved}
+              >
+                Retry last request
+              </button>
+              {config.demoMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void probeBoundary()}
+                    disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
+                  >
+                    Attempt fourth use
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runAudit()}
+                    disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
+                  >
+                    Run privacy audit
+                  </button>
+                  <button
+                    className="button-danger"
+                    type="button"
+                    onClick={() => void resetDemo()}
+                    disabled={busy}
+                  >
+                    Reset demo run
+                  </button>
+                </>
+              ) : null}
+            </div>
+            <p className="muted">
+              “Attempt fourth use” sends a controlled simulator boundary probe through the real
+              verifier.
+            </p>
+          </section>
+          <section className="panel wallet" aria-labelledby="wallet-title" aria-busy={busy}>
+            <p className="eyebrow">02 / HOLDER WALLET · LOCAL ONLY</p>
+            <h2 id="wallet-title">Your browser's private pass</h2>
+            <p className="muted">
+              IndexedDB stores the pass, slots, and exact pending request on this browser. These
+              local slots are not the verifier's counter.
+            </p>
+            <p
+              className="protocol-state"
+              data-tone={tone}
+              data-testid="operation-status"
+              aria-live="polite"
+            >
+              {protocolState}
+            </p>
+            <div className="wallet-grid">
+              <article>
+                <span className="index">LOCAL SLOTS</span>
+                <strong>{credential ? "Credential ready" : "No credential"}</strong>
+                <p>
+                  {credential
+                    ? `${remaining} of ${credential.policy.maxUses} uses available`
+                    : "Issue a pass to create local slots."}
+                </p>
+              </article>
+              <article>
+                <span className="index">OPERATION</span>
+                <strong>{operation?.state ?? "IDLE"}</strong>
+                <p aria-live="polite" data-testid="command-message">
+                  {busy ? "◌ " : ""}
+                  {message}
+                </p>
+              </article>
+              <article>
+                <span className="index">LATEST RECEIPT</span>
+                <strong>{receipt ? "COMMITTED" : "Awaiting action"}</strong>
+                <p data-testid="wallet-receipt">
+                  {receipt ? receipt.receiptId : "A stable action receipt will appear here."}
+                </p>
+              </article>
+            </div>
+          </section>
+        </aside>
+        <section className="workspace" aria-label="Server evidence">
+          {config.demoMode ? (
+            <EvidencePanels evidence={evidence} events={events} streamState={streamState} />
+          ) : (
+            <section className="panel">
+              <h2>Demo controls disabled</h2>
+              <p>This environment exposes the holder wallet only.</p>
+            </section>
+          )}
+        </section>
+      </div>
       <footer>
-        <span>Phase 5 exact retry · {remaining} slots locally available</span>
+        <span>AnonLimit / Opaque crypto simulation</span>
         <p>
-          Cryptographic guarantees are assumptions of an opaque simulated provider. Production
-          anonymity is not implemented.
+          Three uses per anonymous pass. Issuance policy determines who can obtain another pass.
         </p>
       </footer>
     </main>

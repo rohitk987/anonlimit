@@ -12,11 +12,12 @@ import {
 } from "@anonlimit/contracts";
 import {
   calculateInvariants,
+  canonicalJson,
   computeScopeHash,
   type EvidenceObservations,
   type LinkabilityPair as DomainLinkabilityPair,
 } from "@anonlimit/domain";
-import type { AuditAdapter, LinkabilityResult } from "@anonlimit/crypto/audit";
+import type { AuditAdapter } from "@anonlimit/crypto/audit";
 import type { ProtocolEventInput, VerifierEvidenceSnapshot } from "@anonlimit/db/verifier";
 import { ProtocolPublicError } from "../protocol/protocol-service.js";
 import type { ActionSimulatorEvidenceClient } from "../internal/action-simulator-client.js";
@@ -114,10 +115,6 @@ function isoNow(now: () => number): string {
   return new Date(value).toISOString();
 }
 
-function opposite(result: "SAME_USE" | "UNLINKABLE"): "SAME_USE" | "UNLINKABLE" {
-  return result === "SAME_USE" ? "UNLINKABLE" : "SAME_USE";
-}
-
 function publicLinkability(stored: StoredAudit): LinkabilityReport {
   return linkabilityReportSchema.parse({
     status: stored.status,
@@ -141,17 +138,78 @@ function publicEvidenceUse(record: VerifierEvidenceSnapshot["uses"][number]) {
   };
 }
 
-function countsSnapshot(
-  snapshot: VerifierEvidenceSnapshot,
-  externalActions: number,
-  receipts: number
-) {
+/** Transactional events measure effects by request trace; ledgers prove event coverage. */
+function mutationEvidence(snapshot: VerifierEvidenceSnapshot, actionUseIds: readonly string[]) {
+  const accepted = snapshot.events.filter((event) => event.event === "USE_ACCEPTED");
+  const completed = snapshot.events.filter((event) => event.event === "EXTERNAL_ACTION_COMMITTED");
+  const refs = new Set(snapshot.uses.map((record) => record.maskedUseRef));
+  const actionRefs = new Set(actionUseIds.map(maskedUseRef));
+  const oneEach = (values: readonly (string | undefined)[], expected: ReadonlySet<string>) =>
+    values.length === expected.size &&
+    new Set(values).size === values.length &&
+    values.every((value) => value !== undefined && expected.has(value));
+  const ledgerComplete =
+    oneEach(
+      accepted.map((event) => event.maskedUseRef),
+      refs
+    ) &&
+    oneEach(
+      completed.map((event) => event.maskedUseRef),
+      actionRefs
+    ) &&
+    oneEach(
+      snapshot.outboxUseIds,
+      new Set(snapshot.uses.map((record) => record.acceptedUse.useId))
+    ) &&
+    snapshot.events.reduce((total, event) => total + event.usageDelta, 0) ===
+      snapshot.uses.length &&
+    snapshot.events.reduce((total, event) => total + event.actionDelta, 0) === actionUseIds.length;
+  const deltaForTrace = (traceId: string) => {
+    const events = snapshot.events.filter((event) => event.traceId === traceId);
+    return {
+      uses: events.reduce((total, event) => total + event.usageDelta, 0),
+      outboxEvents: events.filter((event) => event.event === "USE_ACCEPTED").length,
+      externalActions: events.reduce((total, event) => total + event.actionDelta, 0),
+      receipts: events.filter((event) => event.event === "EXTERNAL_ACTION_COMMITTED").length,
+    };
+  };
+  const retryEvents = snapshot.events.filter((event) => event.event === "RETRY_MATCHED");
+  const retryComplete = retryEvents.every(
+    (event) =>
+      accepted.some(
+        (original) =>
+          original.maskedUseRef === event.maskedUseRef && original.sequence < event.sequence
+      ) &&
+      snapshot.events.some(
+        (result) =>
+          result.traceId === event.traceId &&
+          result.maskedUseRef === event.maskedUseRef &&
+          ["RETRY_RESOLVED", "RETRY_IN_PROGRESS", "USE_FAILED_FINAL"].includes(result.event)
+      )
+  );
   return {
-    uses: snapshot.uses.length,
-    outboxEvents: snapshot.outboxUseIds.length,
-    externalActions,
-    receipts,
-  } as const;
+    unavailable: !ledgerComplete || !retryComplete,
+    retries:
+      ledgerComplete && retryComplete
+        ? retryEvents.map((event) => ({ delta: deltaForTrace(event.traceId) }))
+        : null,
+    rejectedAttempts: ledgerComplete
+      ? snapshot.events
+          .filter((event) =>
+            ["OVER_LIMIT_REJECTED", "PRESENTATION_REJECTED", "NULLIFIER_CONFLICT"].includes(
+              event.event
+            )
+          )
+          .map((event) => ({
+            kind:
+              event.event === "OVER_LIMIT_REJECTED"
+                ? ("OVER_LIMIT" as const)
+                : ("INVALID" as const),
+            rejected: true,
+            delta: deltaForTrace(event.traceId),
+          }))
+      : null,
+  };
 }
 
 export function createEvidenceController(options: EvidenceControllerOptions): EvidenceController {
@@ -273,33 +331,57 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
     const representatives = [
       ...new Map(prepared.map((record) => [record.use.useId, record])).values(),
     ];
+    const exactRetries = representatives.flatMap((representative) => {
+      const retry = prepared.find(
+        (candidate) =>
+          candidate !== representative &&
+          canonicalJson(candidate.presentation) === canonicalJson(representative.presentation)
+      );
+      return retry &&
+        snapshot.events.some(
+          (event) =>
+            event.event === "RETRY_MATCHED" &&
+            event.maskedUseRef === maskedUseRef(representative.use.useId)
+        )
+        ? [{ representative, retry }]
+        : [];
+    });
+    if (actualUses.size < 2 || exactRetries.length === 0) {
+      audit = {
+        demoRunId: snapshot.demoRunId,
+        distinctUseRefs: [],
+        pairs: [],
+        status: "INCOMPLETE",
+      };
+      return publicLinkability(audit);
+    }
     const pairs: DomainLinkabilityPair[] = [];
     let failed = false;
+    let unavailable = false;
     const compare = async (
       left: AuditInput,
       right: AuditInput,
       expected: DomainLinkabilityPair["expected"]
     ) => {
-      let result: LinkabilityResult;
       try {
-        result = (await options.auditAdapter?.testLinkability(
+        const result = await options.auditAdapter?.testLinkability(
           left.verification,
           right.verification
-        )) ?? {
-          ok: false,
-          code: "PRESENTATION_REJECTED",
-        };
+        );
+        if (!result?.ok) {
+          unavailable = true;
+          return;
+        }
+        if (result.result !== expected) failed = true;
+        pairs.push({
+          leftUseRef: left.use.useId,
+          rightUseRef: right.use.useId,
+          expected,
+          result: result.result,
+        });
       } catch {
-        result = { ok: false, code: "PRESENTATION_REJECTED" };
+        unavailable = true;
       }
-      const observed = result.ok ? result.result : opposite(expected);
-      if (observed !== expected) failed = true;
-      pairs.push({
-        leftUseRef: left.use.useId,
-        rightUseRef: right.use.useId,
-        expected,
-        result: observed,
-      });
     };
     for (let left = 0; left < representatives.length; left += 1)
       for (let right = left + 1; right < representatives.length; right += 1) {
@@ -307,12 +389,16 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
         const rightInput = representatives[right];
         if (leftInput && rightInput) await compare(leftInput, rightInput, "UNLINKABLE");
       }
-    for (const representative of representatives) {
-      const retry = prepared.find(
-        (candidate) =>
-          candidate.use.useId === representative?.use.useId && candidate !== representative
-      );
-      if (retry && representative) await compare(representative, retry, "SAME_USE");
+    for (const { representative, retry } of exactRetries)
+      await compare(representative, retry, "SAME_USE");
+    if (unavailable) {
+      audit = {
+        demoRunId: snapshot.demoRunId,
+        distinctUseRefs: [],
+        pairs: [],
+        status: "INCOMPLETE",
+      };
+      return publicLinkability(audit);
     }
     const status = failed ? "FAIL" : "PASS";
     audit = {
@@ -344,23 +430,10 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
   async function getEvidence(): Promise<EvidenceReport> {
     const snapshot = await snapshotOrDisabled();
     const actionEvidence = await options.actionClient.getEvidence(snapshot.demoRunId);
-    const counts = countsSnapshot(
+    const mutations = mutationEvidence(
       snapshot,
-      actionEvidence.externalActions,
-      actionEvidence.receipts.length
+      actionEvidence.receipts.map((receipt) => receipt.useId)
     );
-    const retries = snapshot.events
-      .filter((event) => event.event === "RETRY_MATCHED")
-      .map(() => ({ before: counts, after: counts }));
-    const rejectedAttempts = snapshot.events
-      .filter((event) => ["OVER_LIMIT_REJECTED", "PRESENTATION_REJECTED"].includes(event.event))
-      .map((event) => ({
-        kind:
-          event.event === "OVER_LIMIT_REJECTED" ? ("OVER_LIMIT" as const) : ("INVALID" as const),
-        rejected: true,
-        before: counts,
-        after: counts,
-      }));
     const actionByUse = new Map(actionEvidence.receipts.map((receipt) => [receipt.useId, receipt]));
     const receiptRecoveries = snapshot.uses.flatMap((record) => {
       if (record.acceptedUse.status !== "SUCCEEDED") return [];
@@ -378,8 +451,10 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
         useId: receipt.useId,
         actionKey: receipt.actionKey,
       })),
-      retries,
-      rejectedAttempts,
+      retries: mutations.retries,
+      rejectedAttempts: mutations.rejectedAttempts,
+      mutationEvidenceUnavailable:
+        mutations.unavailable || actionEvidence.externalActions !== actionEvidence.receipts.length,
       privacy: snapshot.privacy,
       receiptRecoveries,
       linkability: storedAudit

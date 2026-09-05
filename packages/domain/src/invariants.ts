@@ -12,10 +12,10 @@ export interface MutationSnapshot {
   readonly externalActions: number;
   readonly receipts: number;
 }
-export interface MutationObservation {
-  readonly before: MutationSnapshot;
-  readonly after: MutationSnapshot;
-}
+export type MutationObservation =
+  | { readonly before: MutationSnapshot; readonly after: MutationSnapshot }
+  /** Deltas from a request trace, reconciled against the durable ledgers by its adapter. */
+  | { readonly delta: MutationSnapshot };
 export interface LinkabilityPair {
   readonly leftUseRef: string;
   readonly rightUseRef: string;
@@ -52,6 +52,8 @@ export interface EvidenceObservations {
   } | null;
   /** Set when the opaque audit adapter is unavailable; this is never treated as a pass. */
   readonly linkabilityUnavailable?: boolean;
+  /** Missing event/ledger coverage cannot establish that an attempt had zero effects. */
+  readonly mutationEvidenceUnavailable?: boolean;
 }
 function check(value: boolean | null): CheckResult {
   return { status: value === null ? "NOT_RUN" : value ? "PASS" : "FAIL" };
@@ -61,11 +63,15 @@ function count(value: number): void {
 }
 function snapshots(observations: readonly MutationObservation[] | null): void {
   for (const observation of observations ?? [])
-    for (const snapshot of [observation.before, observation.after])
+    for (const snapshot of "delta" in observation
+      ? [observation.delta]
+      : [observation.before, observation.after])
       for (const value of Object.values(snapshot)) count(value);
 }
 function unchanged(observation: MutationObservation): boolean {
-  return canonicalJson(observation.before) === canonicalJson(observation.after);
+  return "delta" in observation
+    ? Object.values(observation.delta).every((value) => value === 0)
+    : canonicalJson(observation.before) === canonicalJson(observation.after);
 }
 function extra(
   observations: readonly MutationObservation[] | null,
@@ -74,7 +80,10 @@ function extra(
   return observations?.length
     ? observations.reduce(
         (total, observation) =>
-          total + Math.max(0, observation.after[key] - observation.before[key]),
+          total +
+          ("delta" in observation
+            ? observation.delta[key]
+            : Math.max(0, observation.after[key] - observation.before[key])),
         0
       )
     : null;
@@ -207,12 +216,16 @@ export function calculateInvariants(observations: EvidenceObservations) {
           ? true
           : null
     ),
-    retryIdempotency: check(retries?.length ? retries.every(unchanged) : null),
-    noFailedVerificationConsumption: check(
-      rejectedAttempts?.length
-        ? rejectedAttempts.every((attempt) => attempt.rejected && unchanged(attempt))
-        : null
-    ),
+    retryIdempotency: observations.mutationEvidenceUnavailable
+      ? { status: "INCOMPLETE" }
+      : check(retries?.length ? retries.every(unchanged) : null),
+    noFailedVerificationConsumption: observations.mutationEvidenceUnavailable
+      ? { status: "INCOMPLETE" }
+      : check(
+          rejectedAttempts?.length
+            ? rejectedAttempts.every((attempt) => attempt.rejected && unchanged(attempt))
+            : null
+        ),
     singleExternalEffect: check(external),
     recoverability: check(recovery),
     noStableIdentity: check(
@@ -238,9 +251,13 @@ export function calculateInvariants(observations: EvidenceObservations) {
             )
         : null
     ),
-    overLimitRejected: check(
-      overLimit.length ? overLimit.every((attempt) => attempt.rejected && unchanged(attempt)) : null
-    ),
+    overLimitRejected: observations.mutationEvidenceUnavailable
+      ? { status: "INCOMPLETE" }
+      : check(
+          overLimit.length
+            ? overLimit.every((attempt) => attempt.rejected && unchanged(attempt))
+            : null
+        ),
     allReceiptsStable: check(allStable),
   };
   const statuses = Object.values(checks).map((value) => value.status);

@@ -50,12 +50,16 @@ export async function seedDefaultPolicy(
   try {
     await client.query("BEGIN");
     try {
-      await client.query(
-        `INSERT INTO verifier.demo_runs (demo_run_id, status)
-         VALUES ($1, 'ACTIVE')
-         ON CONFLICT (demo_run_id) DO NOTHING`,
-        [DEFAULT_DEMO_RUN_ID]
+      const existingActive = await client.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM verifier.demo_runs WHERE status = 'ACTIVE'"
       );
+      if (existingActive.rows[0]?.count === 0)
+        await client.query(
+          `INSERT INTO verifier.demo_runs (demo_run_id, status)
+           VALUES ($1, 'ACTIVE')
+           ON CONFLICT (demo_run_id) DO NOTHING`,
+          [DEFAULT_DEMO_RUN_ID]
+        );
       await client.query(
         `INSERT INTO verifier.quota_policies (
            policy_id, version, issuer_key_id, verifier_audience, max_uses,
@@ -80,6 +84,9 @@ export async function seedDefaultPolicy(
         "SELECT status FROM verifier.demo_runs WHERE demo_run_id = $1",
         [DEFAULT_DEMO_RUN_ID]
       );
+      const activeRunResult = await client.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM verifier.demo_runs WHERE status = 'ACTIVE'"
+      );
       const policyResult = await client.query<{
         issuer_key_id: string;
         verifier_audience: string;
@@ -97,7 +104,7 @@ export async function seedDefaultPolicy(
       );
       const row = policyResult.rows[0];
       if (
-        runResult.rows[0]?.status !== "ACTIVE" ||
+        (runResult.rows[0]?.status !== "ACTIVE" && activeRunResult.rows[0]?.count !== 1) ||
         !row ||
         row.issuer_key_id !== policy.issuerKeyId ||
         row.verifier_audience !== policy.audience ||

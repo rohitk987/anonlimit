@@ -30,12 +30,16 @@ export interface BoundTestPresentationRequest {
 }
 
 export interface BoundTestAdapter {
-  /** Builds the provider-authenticated boundary slot L. Tests only. */
+  /** Builds the provider-authenticated boundary slot L for an explicit simulator probe. */
   createOutOfRangePresentation(request: BoundTestPresentationRequest): Promise<Presentation>;
 }
 
 export interface BoundTestOptions extends SimulatorOptions {
   randomBytes?: (length: number) => Uint8Array;
+}
+
+export interface BoundaryProbeOptions extends BoundTestOptions {
+  readonly demoMode: boolean;
 }
 
 const requestSchema = z.strictObject({
@@ -47,11 +51,15 @@ const requestSchema = z.strictObject({
 });
 
 /**
- * Private test oracle for the simulated provider. Production code must never import this adapter.
+ * Private oracle for the simulated provider, enabled only for tests and explicit demo probes.
+ * It never creates a legitimate credential or adds a slot to the holder wallet.
  * The returned presentation has the ordinary public shape; the boundary slot exists only inside
  * an issuer-authenticated encrypted ticket.
  */
-export function createSimulatedBoundTestAdapter(options: BoundTestOptions): BoundTestAdapter {
+export function createSimulatedBoundaryProbeAdapter(
+  options: BoundaryProbeOptions
+): BoundTestAdapter {
+  if (options.demoMode !== true) throw new Error("DEMO_DISABLED");
   const cipher = serverCipher(options);
   const randomBytes = options.randomBytes ?? secureRandomBytes;
   const now = options.now ?? Date.now;
@@ -146,4 +154,9 @@ export function createSimulatedBoundTestAdapter(options: BoundTestOptions): Boun
       }
     },
   };
+}
+
+/** Test-only convenience wrapper. Runtime code must use the demo-gated factory above. */
+export function createSimulatedBoundTestAdapter(options: BoundTestOptions): BoundTestAdapter {
+  return createSimulatedBoundaryProbeAdapter({ ...options, demoMode: true });
 }

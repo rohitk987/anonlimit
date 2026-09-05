@@ -13,6 +13,7 @@ import {
   completeAcceptedOperation,
   readCredential,
   readLatestOperation,
+  readWalletOperations,
   saveCredential,
   saveCredentialIfAbsent,
   saveOperation,
@@ -30,6 +31,25 @@ export interface WalletSnapshot {
 }
 
 export type WalletProgressListener = (snapshot: WalletSnapshot) => void;
+
+/** The audit receives only transient presentations, never wallet grouping or credential data. */
+export async function auditWalletUses(client: ApiClient) {
+  const credential = await readCredential();
+  if (!credential) throw new Error("CREDENTIAL_REQUIRED");
+  const operations = (await readWalletOperations())
+    .filter(
+      (operation) =>
+        operationMatchesCredential(operation, credential) && operation.state === "SUCCEEDED"
+    )
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const retried = operations.find((operation) => operation.retryResult?.replayed);
+  if (operations.length !== credential.policy.maxUses || !retried)
+    throw new Error("Complete three uses and recover the dropped acknowledgement before auditing.");
+  return client.runLinkabilityTest([
+    ...operations.map((operation) => operation.envelope),
+    retried.envelope,
+  ]);
+}
 
 export class WalletOutcomeUnknownError extends Error {
   constructor() {

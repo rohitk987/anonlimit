@@ -40,6 +40,7 @@ export interface ApiClient {
   getEvidence(): Promise<EvidenceReport>;
   runLinkabilityTest(presentations: Presentation[]): Promise<LinkabilityReport>;
   eventStreamUrl(after?: number): string;
+  attemptFourthUse(): Promise<void>;
 }
 
 export class ApiTransportError extends Error {
@@ -68,6 +69,7 @@ export function createApiClient(baseUrl: string): ApiClient {
       response = await fetch(baseUrl + path, {
         ...init,
         credentials: "omit",
+        signal: AbortSignal.timeout(20_000),
         headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       });
     } catch {
@@ -154,6 +156,9 @@ export function createApiClient(baseUrl: string): ApiClient {
     },
     async getEvidence() {
       return evidenceReportSchema.parse(await request("/v1/demo/evidence"));
+    },
+    async attemptFourthUse() {
+      await request("/v1/demo/attempt-fourth-use", { method: "POST", body: "{}" });
     },
     async runLinkabilityTest(presentations) {
       const input = demoLinkabilityRequestSchema.parse({ presentations });
