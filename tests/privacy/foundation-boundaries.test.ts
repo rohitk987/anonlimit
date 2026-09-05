@@ -50,6 +50,32 @@ describe("foundation privacy boundaries", () => {
       )
     ).toThrow();
   });
+  it.each(["issuer", "verifier", "audit"])(
+    "blocks the server-only crypto %s entrypoint under browser conditions",
+    (entrypoint) => {
+      expect(() =>
+        execFileSync(
+          process.execPath,
+          [
+            "--conditions=browser",
+            "--input-type=module",
+            "-e",
+            `import "@anonlimit/crypto/${entrypoint}";`,
+          ],
+          { stdio: "pipe" }
+        )
+      ).toThrow();
+    }
+  );
+  it("resolves only the holder crypto entrypoint under browser conditions", () => {
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        ["--conditions=browser", "--input-type=module", "-e", 'import "@anonlimit/crypto/holder";'],
+        { stdio: "pipe" }
+      )
+    ).not.toThrow();
+  });
   it.each([
     ["apps/web/src/probe.ts", 'void import("@anonlimit/config/server");'],
     ["apps/web/src/probe.ts", 'void import("../../../packages/db/src/verifier.js");'],

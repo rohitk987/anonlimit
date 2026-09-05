@@ -25,11 +25,14 @@
     "test:integration": "vitest run --project integration",
     "test:privacy": "vitest run --project privacy",
     "test:e2e": "playwright test",
-    "check:foundation": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:privacy"
+    "check:foundation": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:privacy",
+    "check:protocol": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:privacy"
   },
   "devDependencies": {
     "@anonlimit/config": "workspace:*",
     "@anonlimit/contracts": "workspace:*",
+    "@anonlimit/crypto": "workspace:*",
+    "@anonlimit/domain": "workspace:*",
     "@anonlimit/db": "workspace:*",
     "@anonlimit/observability": "workspace:*",
     "@eslint/js": "10.0.1",

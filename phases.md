@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0 and 1 complete; G1 passed; Phase 2 is next |
+| Status | Phases 0–2 complete; G2 passed; Phase 3 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -118,7 +118,7 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 |---|---|---:|---|---|
 | [x] | 0. Kickoff and scope lock | 0.5–1 h | Scope, ownership, and local prerequisites verified | Kickoff evidence and local prerequisites pass |
 | [x] | 1. Repository foundation | 1–2 h | Four apps and shared packages build; PostgreSQL is healthy | Clean install, typecheck, build, migration shell |
-| [ ] | 2. Protocol kernel | 2–3 h | Contracts and opaque adapter prove protocol semantics | Unit and opaque-adapter contract suites pass |
+| [x] | 2. Protocol kernel | 2–3 h | Contracts and opaque adapter prove protocol semantics | Unit and opaque-adapter contract suites pass |
 | [ ] | 3. Durable acceptance | 3–4 h | One valid proof atomically creates one use and outbox item | Real PostgreSQL commit/rollback tests pass |
 | [ ] | 4. First complete use | 4–5 h | Browser wallet reaches one stable Action Simulator receipt | One-use end-to-end test passes |
 | [ ] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
@@ -303,7 +303,7 @@ Lock the protocol vocabulary and prove the opaque interface behavior before tran
 
 ### Tasks
 
-- [ ] Define Zod contracts for:
+- [x] Define Zod contracts for:
   - Policy.
   - Issuance.
   - Challenge.
@@ -313,20 +313,20 @@ Lock the protocol vocabulary and prove the opaque interface behavior before tran
   - Protocol event.
   - Evidence report.
   - Demo controls.
-- [ ] Reject unknown public fields.
-- [ ] Define typed domain errors and result variants.
-- [ ] Implement canonical quota-scope construction.
-- [ ] Implement canonical action serialization and intent digest.
-- [ ] Implement stable action-key derivation.
-- [ ] Implement use-state transition guards.
-- [ ] Implement exact-retry versus conflict classification.
-- [ ] Implement invariant-report calculations as pure functions.
-- [ ] Define separate holder, issuer, verifier, and audit crypto entrypoints.
-- [ ] Implement the deterministic simulated provider behind those interfaces.
-- [ ] Protect package exports so server-only crypto cannot enter the browser.
-- [ ] Document provider assumptions in packages/crypto/README.md.
-- [ ] Implement safe event and error serializers.
-- [ ] Inject clocks, randomness, and adapters for deterministic tests.
+- [x] Reject unknown public fields.
+- [x] Define typed domain errors and result variants.
+- [x] Implement canonical quota-scope construction.
+- [x] Implement canonical action serialization and intent digest.
+- [x] Implement stable action-key derivation.
+- [x] Implement use-state transition guards.
+- [x] Implement exact-retry versus conflict classification.
+- [x] Implement invariant-report calculations as pure functions.
+- [x] Define separate holder, issuer, verifier, and audit crypto entrypoints.
+- [x] Implement the deterministic simulated provider behind those interfaces.
+- [x] Protect package exports so server-only crypto cannot enter the browser.
+- [x] Document provider assumptions in packages/crypto/README.md.
+- [x] Implement safe event and error serializers.
+- [x] Inject clocks, randomness, and adapters for deterministic tests.
 
 ### Key files
 
@@ -396,6 +396,10 @@ A framework-independent protocol kernel and a replaceable simulated crypto provi
 - Wire contracts are runtime-validated.
 - Holder-only crypto is the only crypto entrypoint available to the browser.
 - Protocol and error names are frozen for the next vertical slice.
+
+G2 passed on 2026-09-05. The strict contracts, pure domain behavior, opaque adapter guarantees,
+browser export checks, test counts, provider limitations, and cumulative runtime verification are
+recorded in [the Phase 2 protocol record](docs/phase-2-protocol.md) and [memory.md](memory.md).
 
 ### Stop condition
 

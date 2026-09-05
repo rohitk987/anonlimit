@@ -1,4 +1,4 @@
-name: Foundation
+name: Protocol
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  foundation:
+  protocol:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -19,7 +19,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm setup:env
-      - run: pnpm check:foundation
+      - run: pnpm check:protocol
       - run: docker compose config --quiet
       - run: docker compose build api
       - run: docker compose up -d --no-build --wait --wait-timeout 120

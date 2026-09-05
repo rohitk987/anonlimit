@@ -14,9 +14,15 @@ importers:
       '@anonlimit/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@anonlimit/crypto':
+        specifier: workspace:*
+        version: link:packages/crypto
       '@anonlimit/db':
         specifier: workspace:*
         version: link:packages/db
+      '@anonlimit/domain':
+        specifier: workspace:*
+        version: link:packages/domain
       '@anonlimit/observability':
         specifier: workspace:*
         version: link:packages/observability
@@ -142,7 +148,17 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
 
-  packages/crypto: {}
+  packages/crypto:
+    dependencies:
+      '@anonlimit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@anonlimit/domain':
+        specifier: workspace:*
+        version: link:../domain
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
 
   packages/db:
     dependencies:
@@ -154,6 +170,12 @@ importers:
 
   packages/observability:
     dependencies:
+      '@anonlimit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@anonlimit/domain':
+        specifier: workspace:*
+        version: link:../domain
       pino:
         specifier: 10.3.1
         version: 10.3.1

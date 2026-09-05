@@ -1,1 +1,13 @@
 export { healthResponseSchema, type HealthResponse } from "./health.js";
+export * from "./primitives.js";
+export * from "./policy.contract.js";
+export * from "./operation.contract.js";
+export * from "./issuance.contract.js";
+export * from "./challenge.contract.js";
+export * from "./presentation.contract.js";
+export * from "./error.contract.js";
+export * from "./use-result.contract.js";
+export * from "./event.contract.js";
+export * from "./evidence.contract.js";
+export * from "./demo.contract.js";
+export * from "./public-field-allowlist.js";

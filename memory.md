@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-05 (Asia/Calcutta).
 Project root: `D:/myonsite`.
-Current milestone: **Phases 0 and 1 complete; G1 Foundation passed. Phase 2 is next and has not started.**
-Git branch: `codex/phase-1-foundation`. Check `git status` and `git log -1` for the actual revision and any later changes.
+Current milestone: **Phases 0–2 complete; G2 Contract freeze passed. Phase 3 is next and has not started.**
+Git branch: `codex/phase-2-protocol`. Check `git status` and `git log -1` for the actual revision and any later changes.
 
 This is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files and runtime checks take precedence over historical observations.
 
@@ -27,7 +27,7 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | ----- | ----------------------------- | ---------------------------------------------- |
 | 0     | Kickoff and scope lock        | Complete; prerequisites and decisions verified |
 | 1     | Repository/runtime foundation | Complete; G1 passed                            |
-| 2     | Protocol kernel               | Not started                                    |
+| 2     | Protocol kernel               | Complete; G2 passed                            |
 | 3     | Durable acceptance            | Not started                                    |
 | 4     | First complete use            | Not started                                    |
 | 5     | Safe retry                    | Not started                                    |
@@ -37,7 +37,7 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | 9     | P1 resilience                 | Deferred until G8; required for full project   |
 | 10    | Release and rehearsal         | Not started                                    |
 
-Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). The user authorized Phase 1 implementation and continued work. Phase 2 has not been implemented as part of that foundation work.
+Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). The user authorized and continued Phase 2 implementation. Phase 3 has not started.
 
 ## Implemented foundation
 
@@ -47,33 +47,43 @@ Codex is the integration owner. Responsibilities and dependencies are in [the ta
 - Separate validated browser/server configuration. `pnpm setup:env` generated an ignored local `.env`; never print or overwrite it casually.
 - Safe logging facade discards arbitrary messages and fields, including nested child bindings. Browser/server/test imports and direct application environment reads are restricted.
 - PostgreSQL 17 Compose stack with separate verifier/action schemas and login roles; loopback web/API ports only. Migration job uses locking, checksums, and transactions. Only migration metadata exists; there are no product migrations, credentials, receipts, or seed data.
-- CI workflow for foundation checks exists in `.github/workflows/ci.yml`. Its hosted execution has not been observed.
+- CI workflow for the current protocol gate exists in `.github/workflows/ci.yml`. Its hosted execution has not been observed.
 - README, phase board, and [foundation record](docs/phase-1-foundation.md) describe setup, checks, boundaries, and limitations.
 
-Domain, protocol contracts, and crypto export shells intentionally contain no product implementation. No later product invariant has been certified.
+## Implemented protocol kernel
+
+- Strict Zod contracts cover policy, issuance, challenge, presentation, identity-free action, use/receipt results, safe events/errors, evidence, demo controls, and trusted worker actions. Wire schemas reject unknown fields and share UUID/timestamp acceptance vectors with the domain.
+- Pure domain code implements canonical JSON, the five-field server-controlled quota scope, policy/scope/intent/proof digests, separately keyed persistent lookup/action values, injected-clock freshness guards, exhaustive state transitions, exact-retry/conflict classification, terminal result preservation, and authoritative invariant calculations.
+- Evidence stays `NOT_RUN` when an observation is unavailable. Complete passes require receipt ownership and uniqueness, stable recovered receipts, one fixed scope/issuance, mutation-free retries/rejections, full distinct-use audit pairs, and one same-use retry comparison.
+- Separate crypto entrypoints implement a simulated browser holder, server issuer/verifier, and assumption-backed audit adapter. The issuer creates exactly `maxUses` sealed per-slot capabilities; proofs bind policy, scope, active run, challenge, operation, action, and intent. Browser export conditions block every server adapter.
+- Safe protocol serializers select only reviewed fields without spreading unknown objects or invoking accessors. Adversarial tests cover malformed and mutated contexts, credentials, tickets, proofs, slots, outputs, and browser boundaries.
+- `pnpm check:protocol` and CI now include the formerly empty opaque-adapter contract suite. Detailed behavior and validation are in [the Phase 2 record](docs/phase-2-protocol.md); cryptographic limits are in [the crypto README](packages/crypto/README.md).
+
+There is no HTTP issuance/verification transport, IndexedDB wallet, product persistence, use acceptance, outbox dispatch, or external receipt yet. Those remain in Phases 3–7.
 
 ## Verification observed on 2026-09-05
 
-| Check                   | Result                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Node / pnpm             | Bundled Node `24.19.0`, pnpm `11.19.0`                                                                             |
-| Docker / Compose        | Engine `29.2.1`, Compose `5.0.2`, responsive                                                                       |
-| Clean frozen install    | Passed inside a fresh Linux image; no host modules or `.env` copied                                                |
-| `pnpm check:foundation` | Format, lint, strict typecheck, unit, all-app build, and privacy passed                                            |
-| Unit suite              | 23 passed: configuration validation and API/action health/error behavior                                           |
-| Privacy suite           | 18 passed: import boundaries, environment access, safe child logs, browser assets and local-secret exclusion       |
-| Database integration    | 2 passed: PostgreSQL major 17, migration shell, schema isolation, role privileges, future-table default privileges |
-| Browser flow            | 1 passed: real readiness, refresh, outage/recovery, desktop and mobile layout; screenshots visually inspected      |
-| Compose startup         | API, web, worker, Action Simulator, PostgreSQL healthy; migration exited 0                                         |
-| Database version        | PostgreSQL `17.11`; first startup used an empty project volume                                                     |
-| Migration rerun         | Completed successfully on subsequent startup with existing volume                                                  |
-| Missing configuration   | API, Action Simulator, worker, migration all exited 1 with only generic error codes                                |
-| Runtime privacy probe   | Unknown request path/query, authorization, and supplied request ID marker absent from API response and logs        |
-| Git candidate scan      | No generated local secret found; `.env` confirmed ignored                                                          |
+| Check                 | Result                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Node / pnpm           | Bundled Node `24.19.0`, pnpm `11.19.0`                                                                              |
+| Docker / Compose      | Engine `29.2.1`, Compose `5.0.2`, responsive                                                                        |
+| Clean frozen install  | Passed inside a fresh Linux image; no host modules or `.env` copied                                                 |
+| `pnpm check:protocol` | Format, lint, strict typecheck, unit, opaque-adapter contract, all-app build, and privacy passed                    |
+| Unit suite            | 270 passed: foundation plus contracts, canonicalization, policy, state/retry, evidence, and serializers             |
+| Contract suite        | 8 passed: fixed slots/nullifiers, all bindings, tampering, copies, domain separation, audit, protected keys, output |
+| Privacy suite         | 22 passed: import/export boundaries, environment access, safe logging/serialization, assets, secret exclusion       |
+| Database integration  | 2 passed: PostgreSQL major 17, migration shell, schema isolation, role privileges, future-table default privileges  |
+| Browser flow          | 1 passed: real readiness, refresh, outage/recovery, desktop and mobile layout; screenshots visually inspected       |
+| Compose startup       | API, web, worker, Action Simulator, PostgreSQL healthy; migration exited 0                                          |
+| Database version      | PostgreSQL `17.11`; first startup used an empty project volume                                                      |
+| Migration rerun       | Completed successfully on subsequent startup with existing volume                                                   |
+| Missing configuration | API, Action Simulator, worker, migration all exited 1 with only generic error codes                                 |
+| Runtime privacy probe | Unknown request path/query, authorization, and supplied request ID marker absent from API response and logs         |
+| Git candidate scan    | No generated local secret found; `.env` confirmed ignored                                                           |
 
 Final test/tooling edits were separately typechecked and the affected privacy, integration, and browser suites passed again. Browser screenshots are in ignored `test-results/foundation-desktop.png` and `test-results/foundation-mobile.png`.
 
-The contract suite remains empty and intentionally fails until Phase 2; it is not counted as passed. Full P0, storage/event/evidence privacy, concurrency, release CI, and soak gates belong to later phases.
+G2 certifies the protocol kernel and simulated adapter contract only. Full P0, storage/event/evidence privacy, database concurrency, release CI, and soak gates belong to later phases.
 
 ## Local setup and pitfalls
 
@@ -94,7 +104,7 @@ Use the existing `.env` with its existing PostgreSQL volume. Initial role/passwo
 pnpm install --frozen-lockfile
 docker compose build api
 docker compose up -d --no-build --wait --wait-timeout 120
-pnpm check:foundation
+pnpm check:protocol
 pnpm test:integration
 pnpm test:e2e
 ```
@@ -111,17 +121,18 @@ Vite preview uses `--configLoader native` to work under the non-root container u
 
 ## Next step
 
-When continuing implementation, start **Phase 2 — protocol kernel and opaque crypto contract** from [phases.md](phases.md):
+When continuing implementation, start **Phase 3 — database foundation and durable acceptance** from [phases.md](phases.md):
 
-1. Recheck Git and runtime state, read Phase 2 and the related specifications.
-2. Define/freeze policy, issuance, challenge, presentation, operation/action, receipt, error, and event contracts.
-3. Implement pure domain rules and separate opaque simulated holder/issuer/verifier/audit interfaces.
-4. Add positive and adversarial adapter contract tests; pass G2 and keep G1 passing before database acceptance work.
+1. Recheck Git/runtime state and read the Phase 3 transaction, schema, acceptance-order, and privacy requirements.
+2. Add verifier and Action Simulator product migrations with named constraints, indexes, separate role grants, and safe repository types.
+3. Implement policy/challenge persistence and one atomic acceptance transaction that consumes the challenge, inserts the protected use, creates one outbox item, and records one safe event.
+4. Use the frozen retry classifier before freshness checks, call the verifier before opening a transaction, and prove commit/rollback, uniqueness, and raw-proof/nullifier non-persistence against real PostgreSQL.
 
 ## Recent milestones
 
 | Date       | Milestone                                     | Outcome                                               |
 | ---------- | --------------------------------------------- | ----------------------------------------------------- |
+| 2026-09-05 | Phase 2 protocol kernel implemented/verified  | G2 passed; Phase 3 next                               |
 | 2026-09-05 | Phase 1 foundation implemented and verified   | G1 passed; Phase 2 next                               |
 | 2026-09-05 | Created memory and AI continuity instructions | Future sessions read and maintain current status      |
 | 2026-09-05 | Repaired Docker startup through Explorer      | Local prerequisite blocker resolved; Phase 0 complete |

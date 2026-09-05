@@ -2,9 +2,9 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phase 1 is implemented.** The four application shells, PostgreSQL 17, migration job, typed configuration, dependency boundaries, and health checks run locally. Credential issuance, wallet storage, use acceptance, receipts, retries, and evidence remain future phases. The screen labels these capabilities as unavailable.
+**Phases 0–2 are implemented, and G2 has passed.** The workspace and PostgreSQL runtime run locally. Strict protocol contracts, pure canonical/retry/evidence rules, and the replaceable opaque simulated crypto provider are frozen for the next vertical slice. HTTP issuance, wallet storage, durable use acceptance, worker actions, receipts, and live evidence remain future phases, so the screen still labels them as unavailable.
 
-Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
+Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
 ## Start locally
 
@@ -36,35 +36,37 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the foundation
+## Verify the protocol foundation
 
 ```powershell
-pnpm check:foundation
+pnpm check:protocol
 pnpm test:integration
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-The first command runs formatting, lint, type checking, unit tests, all-app build, and foundation privacy checks. Integration and browser checks require the running Compose stack. The browser check covers real readiness, retrying the check, unavailable state, recovery, and desktop/mobile layout.
+The first command runs formatting, lint, type checking, unit and opaque-adapter contract tests, all-app builds, and privacy checks. Integration and browser checks require the running Compose stack. The browser check covers real readiness, retrying the check, unavailable state, recovery, and desktop/mobile layout.
 
-A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces this foundation gate with a frozen install and empty PostgreSQL. Its hosted execution has not been observed locally.
+A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces this protocol gate with a frozen install and empty PostgreSQL. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, and `pnpm test:privacy`. The contract project intentionally has no tests until Phase 2 and fails when empty. Foundation integration/privacy checks do not certify the later product invariants.
+Stable commands also include `pnpm check:foundation`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, and `pnpm test:privacy`. G2 freezes protocol behavior but does not certify later durable product invariants.
 
 ## Workspace
 
-| Location                                 | Responsibility                                                 |
-| ---------------------------------------- | -------------------------------------------------------------- |
-| `apps/web`                               | React/Vite foundation screen with real API readiness           |
-| `apps/api`                               | Fastify public health endpoints                                |
-| `apps/worker`                            | Database-aware process heartbeat; no outbox processing yet     |
-| `apps/action-simulator`                  | Private Fastify health endpoints                               |
-| `packages/domain`, `contracts`, `crypto` | Protocol package boundaries; only health contracts implemented |
-| `packages/db`                            | Role-specific connections and append-only migration runner     |
-| `packages/config`                        | Separate validated server/client configuration                 |
-| `packages/observability`                 | Log field allowlist, including child logger bindings           |
-| `packages/testing`                       | Test-only helpers prohibited in production imports             |
+| Location                 | Responsibility                                                      |
+| ------------------------ | ------------------------------------------------------------------- |
+| `apps/web`               | React/Vite foundation screen with real API readiness                |
+| `apps/api`               | Fastify public health endpoints                                     |
+| `apps/worker`            | Database-aware process heartbeat; no outbox processing yet          |
+| `apps/action-simulator`  | Private Fastify health endpoints                                    |
+| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists   |
+| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules |
+| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters |
+| `packages/db`            | Role-specific connections and append-only migration runner          |
+| `packages/config`        | Separate validated server/client configuration                      |
+| `packages/observability` | Log field allowlist, including child logger bindings                |
+| `packages/testing`       | Test-only helpers prohibited in production imports                  |
 
-The local foundation image uses Vite preview and includes build tooling. Release packaging belongs to Phase 10. Opaque crypto is a simulation boundary; production anonymity is not implemented.
+The local foundation image uses Vite preview and includes build tooling. Release packaging belongs to Phase 10. The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
 
 Product requirements and implementation gates are in [prd.md](prd.md), [architecture.md](architecture.md), [phases.md](phases.md), and [rules.md](rules.md).

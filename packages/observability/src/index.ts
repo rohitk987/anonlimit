@@ -1,4 +1,13 @@
 import pino, { type DestinationStream, type LevelWithSilent } from "pino";
+import {
+  protocolEventFields,
+  protocolEventSchema,
+  publicErrorCodeSchema,
+  publicErrorFields,
+  publicErrorSchema,
+  type ProtocolEvent,
+  type PublicError,
+} from "@anonlimit/contracts";
 
 const codes = new Set([
   "CONFIGURATION_INVALID",
@@ -6,7 +15,37 @@ const codes = new Set([
   "STARTUP_FAILED",
   "INTERNAL_ERROR",
   "SHUTDOWN_FAILED",
+  ...publicErrorCodeSchema.options,
 ]);
+
+function pick<const T extends readonly string[]>(
+  value: unknown,
+  fields: T
+): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  if (value === null || typeof value !== "object") return output;
+  for (const field of fields) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, field);
+    if (descriptor && "value" in descriptor) output[field] = descriptor.value;
+  }
+  return output;
+}
+
+export function serializeProtocolEvent(value: unknown): ProtocolEvent {
+  try {
+    return protocolEventSchema.parse(pick(value, protocolEventFields));
+  } catch {
+    throw new Error("EVENT_SERIALIZATION_FAILED");
+  }
+}
+
+export function serializePublicError(value: unknown): PublicError {
+  try {
+    return publicErrorSchema.parse(pick(value, publicErrorFields));
+  } catch {
+    throw new Error("ERROR_SERIALIZATION_FAILED");
+  }
+}
 export function sanitizeLog(value: unknown): Record<string, string | number> {
   if (!value || typeof value !== "object") return {};
   const safe: Record<string, string | number> = {};
