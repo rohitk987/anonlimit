@@ -25,7 +25,14 @@ export const eventNameSchema = z.enum([
 ]);
 export const decisionCodeSchema = z.union([
   publicErrorCodeSchema,
-  z.enum(["ACCEPTED_PENDING_ACTION", "SUCCEEDED", "RETRY_IN_PROGRESS", "RETRY_RESOLVED"]),
+  z.enum([
+    "ACCEPTED_PENDING_ACTION",
+    "SUCCEEDED",
+    "RETRY_IN_PROGRESS",
+    "RETRY_RESOLVED",
+    "EXTERNAL_ACTION_COMMITTED",
+    "DEMO_RESET",
+  ]),
 ]);
 export const eventStateSchema = z.enum([
   "UNSEEN",

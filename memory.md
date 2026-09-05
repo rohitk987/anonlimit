@@ -1,9 +1,9 @@
 # AnonLimit project memory
 
-Last updated: 2026-09-05 (Asia/Calcutta).
+Last updated: 2026-09-06 (Asia/Calcutta).
 Project root: `D:/myonsite`.
-Current milestone: **Phases 0–6 complete; G6 Backend P0 passed. Phase 7 is next.**
-Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); this memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
+Current milestone: **Phases 0–7 complete; G7 Evidence P0 passed. Phase 8 is next.**
+Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); the Phase 7 implementation and handoff are recorded in the current change. Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
 
@@ -32,12 +32,12 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | 4     | First complete use            | Complete; G4 passed                            |
 | 5     | Safe retry                    | Complete; G5 passed                            |
 | 6     | Bound and rejection           | Complete; G6 Backend P0 passed                 |
-| 7     | Evidence and privacy          | Not started                                    |
+| 7     | Evidence and privacy          | Complete; G7 Evidence P0 passed                |
 | 8     | Judge experience / P0 lock    | Not started                                    |
 | 9     | P1 resilience                 | Deferred until G8; required for full project   |
 | 10    | Release and rehearsal         | Not started                                    |
 
-Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 7 is the next implementation slice.
+Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). Phase 8 is the next implementation slice.
 
 ## Implemented system
 
@@ -74,21 +74,31 @@ Detailed Phase 5 behavior and evidence: [Phase 5 record](docs/phase-5-safe-retry
 - `packages/testing/src/scenarios/golden-scenario.ts` is transport-neutral and asserts backend counts after every step. The real Phase 6 integration runs it twice with deterministic clock/UUID/randomness, durable lost-ack delivery, the controlled boundary proof, and an unrelated sentinel run.
 - Phase 6 evidence is recorded in [the Phase 6 record](docs/phase-6-bound-reset.md). G6 passed: declared limit 3, three accepted uses, three committed actions, zero retry deltas, zero over-limit mutations, and stable receipts.
 
-## Verification observed on 2026-09-05
+## Phase 7 authoritative evidence and privacy
 
-| Check                     | Result                                                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Node / pnpm               | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                     |
-| Docker / Compose          | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                               |
-| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration and seed exited 0                                    |
-| `pnpm check:phase6`       | Passed formatting, lint, strict type checks, builds, 292 unit, 9 contract, 33 cumulative integration, and 24 privacy tests |
-| `pnpm test:integration`   | 26 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                              |
-| `pnpm test:e2e`           | 3 passed: durable lost-ack recovery, stored resend as first arrival, and expired-unaccepted proof rebuild                  |
-| Existing-volume migration | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                     |
-| Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned              |
-| Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                    |
-| Phase 6 golden scenario   | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                   |
-| Hosted CI                 | Phase 6 workflow configured; hosted execution has not been observed                                                        |
+- `verifier.evidence_uses` and `verifier.evidence_events` are sanitized database views. The verifier evidence query boundary scopes every read to the active server-owned demo run and exposes only masked use references, intent digests, states, stable action keys, receipts, safe events, and privacy column counts.
+- `GET /internal/v1/evidence?demoRunId=...` returns strict run-scoped Action Simulator receipts. `GET /v1/demo/evidence` joins that response with verifier state and calculates all invariant checks; no frontend counter is authoritative.
+- Issuance, rejection, conflict, retry, worker, reset, and privacy-audit transitions use an allowlisted protocol event schema. `GET /v1/demo/events/stream` emits finite safe replay batches and accepts either `after` or `Last-Event-ID` cursors.
+- `POST /v1/demo/linkability-test` validates transient wallet presentations against the active run and accepted uses, compares every distinct-use pair as `UNLINKABLE`, and compares an exact duplicate as `SAME_USE`. Raw presentations and grouping labels are discarded after the request. Missing audit support produces `INCOMPLETE`, never PASS.
+- `packages/testing/src/scanners/forbidden-data.ts` scans structured rows, logs, events, outbox payloads, API/evidence objects, exports, and imports without printing secret values. `pnpm audit:privacy` scans the generated browser asset for local secret markers; protocol field names required by holder-only code are not treated as leaked values.
+- The complete Phase 7 record is [here](docs/phase-7-evidence-privacy.md). Phase 8 now owns the guided Demo Lab, evidence panels, linkability matrix, and P0 browser rehearsal.
+
+## Verification observed on 2026-09-06
+
+| Check                     | Result                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node / pnpm               | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                                                    |
+| Docker / Compose          | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                                                              |
+| Compose runtime           | API, web, worker, Action Simulator, and PostgreSQL healthy; migration and seed exited 0                                                                   |
+| `pnpm check:phase7`       | Passed formatting, lint, strict type checks, builds, 297 unit, 9 contract, 30 cumulative phase-gate integration, 24 privacy tests, and browser asset scan |
+| `pnpm test:integration`   | 32 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                                                             |
+| `pnpm test:e2e`           | 3 passed: durable lost-ack recovery, stored resend as first arrival, and expired-unaccepted proof rebuild                                                 |
+| Existing-volume migration | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                                                    |
+| Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned                                             |
+| Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                                                   |
+| Phase 6 golden scenario   | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                                                  |
+| Phase 7 integration       | Passed sanitized-view, run-scoped Action Simulator evidence, safe SSE cursor, and API boundary tests (3 tests)                                            |
+| Hosted CI                 | Phase 7 workflow configured; hosted execution has not been observed                                                                                       |
 
 The immutable verifier migration digests in the persistent database are:
 
@@ -99,7 +109,7 @@ The immutable verifier migration digests in the persistent database are:
 
 `0003` was first applied with a trailing blank line. Its bytes are intentionally preserved, and `.gitattributes` disables only Git's blank-at-EOF warning for that immutable file.
 
-G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. G6 now certifies all three uses, the fourth-use rejection, and the server-owned reset; authoritative evidence and release behavior remain later phases.
+G5 certifies one durable lost acknowledgement and exact recovery with retry usage delta 0, retry action delta 0, the original receipt, no new outbox item, and no additional wallet slot. G6 now certifies all three uses, the fourth-use rejection, and the server-owned reset. G7 certifies the backend-derived evidence boundary and privacy scan; the guided UI and release rehearsal remain later phases.
 
 ## Local setup and Docker recovery
 
@@ -120,7 +130,8 @@ Use the existing `.env` with its existing PostgreSQL volume. Initial role/passwo
 pnpm install --frozen-lockfile
 docker compose build api
 docker compose up -d --no-build --wait --wait-timeout 120
-pnpm check:phase6
+pnpm check:phase7
+pnpm audit:privacy
 pnpm test:integration
 pnpm test:e2e
 ```
@@ -137,16 +148,17 @@ TypeScript 6.0.3 and Vitest 4.1.11 are deliberate compatibility pins. Keep stric
 
 ## Next step
 
-Continue with **Phase 7 — authoritative evidence and privacy** from [phases.md](phases.md):
+Continue with **Phase 8 — guided judge experience and P0 lock** from [phases.md](phases.md):
 
-1. Add sanitized verifier evidence and Action Simulator evidence queries.
-2. Build the invariant report from authoritative backend state.
-3. Extend privacy scans across rows, events, exports, API responses, and bundles.
+1. Connect the Demo Lab metrics to `GET /v1/demo/evidence`.
+2. Render the safe event stream with reconnect cursors and distinct retry/rejection states.
+3. Present the transient linkability matrix, privacy assumptions, and all-PASS invariant panel in the rehearsed browser flow.
 
 ## Recent milestones
 
 | Date       | Milestone                                       | Outcome                                |
 | ---------- | ----------------------------------------------- | -------------------------------------- |
+| 2026-09-06 | Phase 7 evidence and privacy implemented        | G7 Evidence P0 passed; Phase 8 next    |
 | 2026-09-05 | Phase 6 bound, rejection, and reset implemented | G6 Backend P0 passed                   |
 | 2026-09-05 | Phase 5 safe retry implemented and verified     | G5 passed; Phase 6 next                |
 | 2026-09-05 | Docker low-disk/startup incident repaired       | Engine and Compose stack healthy       |

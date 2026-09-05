@@ -12,6 +12,8 @@ import {
 import { registerDemoRoutes } from "./modules/demo/demo.routes.js";
 import type { LostAckFaultController } from "./modules/demo/fault-controller.js";
 import type { DemoResetController } from "./modules/demo/reset-demo.js";
+import type { EvidenceController } from "./modules/evidence/evidence-controller.js";
+import type { EventStreamController } from "./modules/events/events-controller.js";
 
 function ownCode(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -26,7 +28,9 @@ export function createApp(
   checkDatabase: () => Promise<void>,
   protocolService?: ProtocolService,
   faultController?: LostAckFaultController,
-  resetController?: DemoResetController
+  resetController?: DemoResetController,
+  evidenceController?: EvidenceController,
+  eventController?: EventStreamController
 ): FastifyInstance {
   const logger: FastifyBaseLogger = createSafeLogger(config.logLevel);
   const app = Fastify({
@@ -39,7 +43,7 @@ export function createApp(
   void app.register(cors, {
     origin: config.webOrigin,
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Idempotency-Key"],
+    allowedHeaders: ["Content-Type", "Idempotency-Key", "Last-Event-ID"],
     credentials: false,
   });
   app.addHook("onResponse", async (request, reply) => {
@@ -95,7 +99,10 @@ export function createApp(
   });
   const enabledFaultController = config.demoMode ? faultController : undefined;
   if (protocolService) registerProtocolRoutes(app, protocolService, enabledFaultController);
-  if (config.demoMode && (faultController || resetController))
-    registerDemoRoutes(app, faultController, resetController);
+  if (
+    config.demoMode &&
+    (faultController || resetController || evidenceController || eventController)
+  )
+    registerDemoRoutes(app, faultController, resetController, evidenceController, eventController);
   return app;
 }

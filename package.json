@@ -30,15 +30,18 @@
     "test:integration:phase4": "vitest run --project integration tests/integration/action-idempotency.test.ts tests/integration/phase4-worker.test.ts",
     "test:integration:phase5": "vitest run --project integration tests/integration/phase5-safe-retry.test.ts",
     "test:integration:phase6": "vitest run --project integration tests/integration/phase6-golden-scenario.test.ts",
+    "test:integration:phase7": "vitest run --project integration tests/integration/phase7-evidence.test.ts",
     "test:integration:live": "vitest run --project integration tests/integration/foundation-database.test.ts",
     "test:privacy": "vitest run --project privacy",
+    "audit:privacy": "tsx scripts/scan-forbidden-data.ts",
     "test:e2e": "playwright test",
     "check:foundation": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:privacy",
     "check:protocol": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:privacy",
     "check:phase3": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:privacy",
     "check:phase4": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:privacy",
     "check:phase5": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:privacy",
-    "check:phase6": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:integration:phase6 && pnpm test:privacy"
+    "check:phase6": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:integration:phase6 && pnpm test:privacy",
+    "check:phase7": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:integration:phase5 && pnpm test:integration:phase6 && pnpm test:integration:phase7 && pnpm test:privacy && pnpm audit:privacy"
   },
   "devDependencies": {
     "@anonlimit/config": "workspace:*",
@@ -47,6 +50,7 @@
     "@anonlimit/db": "workspace:*",
     "@anonlimit/domain": "workspace:*",
     "@anonlimit/observability": "workspace:*",
+    "@anonlimit/testing": "workspace:*",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@testcontainers/postgresql": "12.1.0",

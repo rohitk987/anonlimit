@@ -12,6 +12,7 @@ import {
   type Policy,
   type PolicyPath,
   type Presentation,
+  type ProtocolEvent,
   type PublicErrorCode,
   type UseResult,
   type UseStatusResponse,
@@ -98,6 +99,22 @@ export interface ProtocolRepository {
     readonly useId: string;
     readonly maskedUseRef: string;
     readonly result: UseResult;
+  }): Promise<void>;
+  appendProtocolEvent?(input: {
+    readonly eventId: string;
+    readonly occurredAt: string;
+    readonly event: ProtocolEvent["event"];
+    readonly traceId: string;
+    readonly demoRunId: string;
+    readonly policyId: string;
+    readonly policyVersion: number;
+    readonly fromState?: ProtocolEvent["fromState"];
+    readonly toState?: ProtocolEvent["toState"];
+    readonly decisionCode?: ProtocolEvent["decisionCode"];
+    readonly usageDelta: 0 | 1;
+    readonly actionDelta: 0 | 1;
+    readonly latencyMs?: number;
+    readonly maskedUseRef?: ProtocolEvent["maskedUseRef"];
   }): Promise<void>;
 }
 
@@ -322,7 +339,10 @@ function retryResponse(decision: Exclude<ReturnType<typeof classifyRetry>, { kin
 
 export interface ProtocolService {
   getPolicy(path: PolicyPath): Promise<ProtocolResponse<Policy>>;
-  issueCredential(request: IssuanceRequest): Promise<ProtocolResponse<IssuanceResponse>>;
+  issueCredential(
+    request: IssuanceRequest,
+    traceId?: string
+  ): Promise<ProtocolResponse<IssuanceResponse>>;
   createChallenge(request: ChallengeRequest): Promise<ProtocolResponse<ChallengeResponse>>;
   present(presentation: Presentation, traceId: string): Promise<ProtocolResponse<UseResult>>;
   getUseStatus(useId: string): Promise<ProtocolResponse<UseStatusResponse>>;
@@ -362,6 +382,34 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
     return `use_${maskedDigest.slice(0, 12)}`;
   }
 
+  async function appendSafeEvent(input: {
+    readonly event: ProtocolEvent["event"];
+    readonly traceId: string;
+    readonly demoRunId: string;
+    readonly policy: Policy;
+    readonly decisionCode?: ProtocolEvent["decisionCode"];
+    readonly fromState?: ProtocolEvent["fromState"];
+    readonly toState?: ProtocolEvent["toState"];
+    readonly maskedUseRef?: ProtocolEvent["maskedUseRef"];
+  }): Promise<void> {
+    if (!repository.appendProtocolEvent) return;
+    await repository.appendProtocolEvent({
+      eventId: checkedUuid(randomUuid),
+      occurredAt: new Date(checkedNow(now)).toISOString(),
+      event: input.event,
+      traceId: input.traceId,
+      demoRunId: input.demoRunId,
+      policyId: input.policy.id,
+      policyVersion: input.policy.version,
+      ...(input.fromState === undefined ? {} : { fromState: input.fromState }),
+      ...(input.toState === undefined ? {} : { toState: input.toState }),
+      ...(input.decisionCode === undefined ? {} : { decisionCode: input.decisionCode }),
+      usageDelta: 0,
+      actionDelta: 0,
+      ...(input.maskedUseRef === undefined ? {} : { maskedUseRef: input.maskedUseRef }),
+    });
+  }
+
   async function findPriorUse(
     input: {
       readonly demoRunId: string;
@@ -369,10 +417,16 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       readonly nullifierKey: string;
       readonly operationId: string;
       readonly intentDigest: string;
+      readonly policy?: Policy;
     },
     traceId: string
   ): Promise<ProtocolResponse<UseResult> | null> {
-    const existing = await repository.findAcceptedUses(input);
+    const existing = await repository.findAcceptedUses({
+      demoRunId: input.demoRunId,
+      scopeHash: input.scopeHash,
+      nullifierKey: input.nullifierKey,
+      operationId: input.operationId,
+    });
     let decision: ReturnType<typeof classifyRetry>;
     try {
       decision = classifyRetry(input, existing);
@@ -380,6 +434,20 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       mapDomainError(error);
     }
     if (decision.kind === "NEW") return null;
+    if (decision.kind === "CONFLICT") {
+      if (input.policy)
+        await appendSafeEvent({
+          event:
+            decision.code === "NULLIFIER_REUSE_CONFLICT"
+              ? "NULLIFIER_CONFLICT"
+              : "PRESENTATION_REJECTED",
+          traceId,
+          demoRunId: input.demoRunId,
+          policy: input.policy,
+          decisionCode: decision.code,
+        });
+      fail(decision.code);
+    }
     const response = retryResponse(decision);
     await repository.recordRetry({
       eventIds: Array.from({ length: response.body.status === "SUCCEEDED" ? 3 : 2 }, () =>
@@ -406,7 +474,7 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       return { statusCode: 200, body: status };
     },
 
-    async issueCredential(request) {
+    async issueCredential(request, traceId = checkedUuid(randomUuid)) {
       const policy = await loadPolicy(request.policyId, request.policyVersion);
       if (!policy) fail("POLICY_REJECTED");
       try {
@@ -422,6 +490,12 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
           ...(request.blindedHolderRequest === undefined
             ? {}
             : { blindedHolderRequest: request.blindedHolderRequest }),
+        });
+        await appendSafeEvent({
+          event: "CREDENTIAL_ISSUED",
+          traceId,
+          demoRunId: run.demoRunId,
+          policy,
         });
         return { statusCode: 200, body: issuanceResponseSchema.parse(response) };
       } catch (error) {
@@ -503,6 +577,7 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
         nullifierKey,
         operationId: presentation.operationId,
         intentDigest,
+        policy,
       } as const;
 
       // A committed historical decision wins even when its original policy/challenge is now stale.
@@ -587,7 +662,21 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       } catch {
         fail("SERVICE_UNAVAILABLE");
       }
-      if (!verification.valid) fail("PRESENTATION_REJECTED");
+      if (!verification.valid) {
+        await appendSafeEvent({
+          event:
+            verification.diagnosticCode === "BOUND_EXCEEDED"
+              ? "OVER_LIMIT_REJECTED"
+              : "PRESENTATION_REJECTED",
+          traceId,
+          demoRunId: run.demoRunId,
+          policy,
+          fromState: "UNSEEN",
+          toState: "REJECTED",
+          decisionCode: "PRESENTATION_REJECTED",
+        });
+        fail("PRESENTATION_REJECTED");
+      }
 
       const useId = checkedUuid(randomUuid);
       const outboxEventId = checkedUuid(randomUuid);

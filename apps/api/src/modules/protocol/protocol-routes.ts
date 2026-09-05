@@ -105,7 +105,7 @@ export function registerProtocolRoutes(
 
   app.post("/v1/issuer/credentials", { onRequest: requireJson }, (request, reply) =>
     respond(app, reply, request.id, () =>
-      service.issueCredential(parse(issuanceRequestSchema, request.body))
+      service.issueCredential(parse(issuanceRequestSchema, request.body), request.id)
     )
   );
 

@@ -7,10 +7,16 @@ import {
 } from "@anonlimit/domain";
 import {
   useStatusResponseSchema,
+  type ProtocolEvent,
   type UseResult,
   type UseStatusResponse,
 } from "@anonlimit/contracts";
 import { createConnectionLifecycle, createPool } from "../connection.js";
+import {
+  createVerifierEvidenceQueries,
+  type ProtocolEventInput,
+  type VerifierEvidenceSnapshot,
+} from "./evidence.queries.js";
 import {
   AcceptancePreconditionError,
   AcceptanceRaceLostError,
@@ -337,11 +343,15 @@ export interface VerifierDatabase {
   cancelDropNextAck(operationId: string): Promise<void>;
   consumeDropNextAckAfterSuccess(input: DropAckConsumptionInput): Promise<boolean>;
   resetDemoRun(input: ResetDemoRunInput): Promise<ResetDemoRunResult>;
+  getEvidenceSnapshot(): Promise<VerifierEvidenceSnapshot | null>;
+  getProtocolEvents(after?: number, limit?: number): Promise<readonly ProtocolEvent[]>;
+  appendProtocolEvent(input: ProtocolEventInput): Promise<void>;
 }
 
 export function createVerifierDatabase(connectionString: string): VerifierDatabase {
   const pool = createPool(connectionString);
   const lifecycle = createConnectionLifecycle(pool);
+  const evidenceQueries = createVerifierEvidenceQueries(pool);
 
   const check = async (): Promise<void> => {
     await lifecycle.check();
@@ -898,5 +908,8 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     cancelDropNextAck,
     consumeDropNextAckAfterSuccess,
     resetDemoRun,
+    getEvidenceSnapshot: evidenceQueries.getEvidenceSnapshot,
+    getProtocolEvents: evidenceQueries.getProtocolEvents,
+    appendProtocolEvent: evidenceQueries.appendProtocolEvent,
   };
 }

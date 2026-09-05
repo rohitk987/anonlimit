@@ -26,6 +26,9 @@ importers:
       '@anonlimit/observability':
         specifier: workspace:*
         version: link:packages/observability
+      '@anonlimit/testing':
+        specifier: workspace:*
+        version: link:packages/testing
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.10.0)

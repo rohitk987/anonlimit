@@ -2,13 +2,16 @@ import { randomUUID } from "node:crypto";
 import {
   internalDemoResetRequestSchema,
   internalDemoResetResponseSchema,
+  internalActionEvidenceResponseSchema,
   internalActionRequestSchema,
   internalActionResponseSchema,
   receiptSchema,
+  uuidSchema,
   type InternalActionRequest,
   type InternalActionResponse,
   type InternalDemoResetRequest,
   type InternalDemoResetResponse,
+  type InternalActionEvidenceResponse,
 } from "@anonlimit/contracts";
 import { createConnectionLifecycle, createPool } from "./connection.js";
 
@@ -50,10 +53,7 @@ export interface ActionDatabase {
   close(): Promise<void>;
   commitAction(request: InternalActionRequest): Promise<InternalActionResponse>;
   resetDemoRun(request: InternalDemoResetRequest): Promise<InternalDemoResetResponse>;
-  getEvidence?(): Promise<{
-    readonly externalActions: number;
-    readonly receipts: readonly ReturnType<typeof receiptSchema.parse>[];
-  }>;
+  getEvidence?(demoRunId?: string): Promise<InternalActionEvidenceResponse>;
 }
 
 function existingResponse(
@@ -190,17 +190,24 @@ export function createActionDatabase(connectionString: string): ActionDatabase {
     }
   };
 
-  const getEvidence = async () => {
+  const getEvidence = async (demoRunId?: string): Promise<InternalActionEvidenceResponse> => {
+    const scopedRunId = demoRunId === undefined ? undefined : uuidSchema.parse(demoRunId);
     const result = await pool.query<ActionResultRow>(
       `SELECT action_key, demo_run_id, payload_digest, receipt
-       FROM action_sim.action_results ORDER BY committed_at`
+       FROM action_sim.action_results
+       ${scopedRunId === undefined ? "" : "WHERE demo_run_id = $1"}
+       ORDER BY committed_at`,
+      scopedRunId === undefined ? [] : [scopedRunId]
     );
     const receipts = result.rows.map((row) => {
       const parsed = receiptSchema.safeParse(row.receipt);
       if (!parsed.success) throw new ActionDatabaseInconsistentError();
       return parsed.data;
     });
-    return { externalActions: receipts.length, receipts };
+    return internalActionEvidenceResponseSchema.parse({
+      externalActions: receipts.length,
+      receipts,
+    });
   };
 
   return { ...lifecycle, commitAction, resetDemoRun, getEvidence };

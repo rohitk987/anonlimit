@@ -22,7 +22,15 @@ export const internalDemoResetResponseSchema = z.strictObject({
   demoRunId: uuidSchema,
   resetAt: timestampSchema,
 });
+export const internalActionEvidenceResponseSchema = z.strictObject({
+  externalActions: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  receipts: z.array(receiptSchema).max(100_000),
+});
+export const internalActionEvidenceQuerySchema = z.strictObject({
+  demoRunId: uuidSchema.optional(),
+});
 export type InternalActionRequest = z.infer<typeof internalActionRequestSchema>;
 export type InternalActionResponse = z.infer<typeof internalActionResponseSchema>;
 export type InternalDemoResetRequest = z.infer<typeof internalDemoResetRequestSchema>;
 export type InternalDemoResetResponse = z.infer<typeof internalDemoResetResponseSchema>;
+export type InternalActionEvidenceResponse = z.infer<typeof internalActionEvidenceResponseSchema>;

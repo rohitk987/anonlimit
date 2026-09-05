@@ -6,12 +6,16 @@ import {
   createSimulatedVerifier,
   sha256Hex,
 } from "@anonlimit/crypto/verifier";
+import { createSimulatedAuditor } from "@anonlimit/crypto/audit";
 import { createVerifierDatabase } from "@anonlimit/db/verifier";
 import { DEFAULT_POLICY_ID, DEFAULT_POLICY_VERSION } from "@anonlimit/db/seed";
 import { createApp } from "./app.js";
 import { createLostAckFaultController } from "./modules/demo/fault-controller.js";
 import { createActionSimulatorResetClient } from "./modules/internal/action-simulator-client.js";
+import { createActionSimulatorEvidenceClient } from "./modules/internal/action-simulator-client.js";
 import { createDemoResetController } from "./modules/demo/reset-demo.js";
+import { createEvidenceController } from "./modules/evidence/evidence-controller.js";
+import { createEventStreamController } from "./modules/events/events-controller.js";
 import { createProtocolService } from "./modules/protocol/index.js";
 
 interface PublicParameters {
@@ -62,6 +66,11 @@ async function main(): Promise<void> {
     ledgerKey: config.verifierLedgerHmacKey,
     actionKey: config.verifierActionHmacKey,
   });
+  const audit = createSimulatedAuditor({
+    issuerKeyId: config.issuerKeyId,
+    issuerSecret: trimmedSecret,
+    now: Date.now,
+  });
   const protocol = createProtocolService({
     repository: database,
     issuer,
@@ -79,7 +88,27 @@ async function main(): Promise<void> {
     policyId: DEFAULT_POLICY_ID,
     policyVersion: DEFAULT_POLICY_VERSION,
   });
-  const app = createApp(config, database.check, protocol, faultController, resetController);
+  const evidenceController = createEvidenceController({
+    repository: database,
+    actionClient: createActionSimulatorEvidenceClient({
+      actionServiceUrl: config.actionServiceUrl,
+      actionServiceToken: config.actionServiceToken,
+    }),
+    auditAdapter: audit,
+    issuerPublicParameters: issuer.publicParameters,
+    lookupProtection,
+    sha256Hex,
+  });
+  const eventController = createEventStreamController(database);
+  const app = createApp(
+    config,
+    database.check,
+    protocol,
+    faultController,
+    resetController,
+    evidenceController,
+    eventController
+  );
   app.addHook("onClose", () => database.close());
   const stop = () => {
     void app.close().catch(() => {

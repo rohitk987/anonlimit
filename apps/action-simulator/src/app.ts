@@ -13,7 +13,12 @@ import {
   ActionIntegrityConflictError,
   type ActionDatabase,
 } from "@anonlimit/db/action";
-import { internalActionRequestSchema, internalActionResponseSchema } from "@anonlimit/contracts";
+import {
+  internalActionEvidenceResponseSchema,
+  internalActionEvidenceQuerySchema,
+  internalActionRequestSchema,
+  internalActionResponseSchema,
+} from "@anonlimit/contracts";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
 import { createSafeLogger } from "@anonlimit/observability";
 import { registerDemoRoutes } from "./routes/demo.routes.js";
@@ -138,8 +143,16 @@ export function createApp(
     if (bearerToken(request.headers.authorization) !== config.actionServiceToken)
       return reply.code(401).send({ code: "UNAUTHORIZED" });
     if (!database.getEvidence) return reply.code(503).send({ code: "SERVICE_UNAVAILABLE" });
+    const query = internalActionEvidenceQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ code: "BAD_REQUEST" });
     try {
-      return reply.code(200).send(await database.getEvidence());
+      return reply
+        .code(200)
+        .send(
+          internalActionEvidenceResponseSchema.parse(
+            await database.getEvidence(query.data.demoRunId)
+          )
+        );
     } catch {
       return reply.code(500).send({ code: "INTERNAL_ERROR" });
     }

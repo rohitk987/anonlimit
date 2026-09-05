@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–6 complete; G6 Backend P0 passed; Phase 7 is next |
+| Status | Phases 0–7 complete; G7 Evidence P0 passed; Phase 8 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -122,8 +122,8 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 | [x] | 3. Durable acceptance | 3–4 h | One valid proof atomically creates one use and outbox item | Real PostgreSQL commit/rollback tests pass |
 | [x] | 4. First complete use | 4–5 h | Browser wallet reaches one stable Action Simulator receipt | One-use end-to-end test passes |
 | [x] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
-| [ ] | 6. Bound and rejection | 2–3 h | Three uses succeed; fourth and conflicts mutate nothing | Headless P0 golden scenario passes |
-| [ ] | 7. Evidence and privacy | 3–4 h | Backend-derived invariant and linkability report passes | Full privacy suite passes |
+| [x] | 6. Bound and rejection | 2–3 h | Three uses succeed; fourth and conflicts mutate nothing | Headless P0 golden scenario passes |
+| [x] | 7. Evidence and privacy | 3–4 h | Backend-derived invariant and linkability report passes | Evidence, integration, and privacy suites pass |
 | [ ] | 8. Judge experience | 3–5 h | Guided browser demo finishes under three minutes | Playwright P0 golden flow passes |
 | [ ] | 9. P1 resilience | 3–5 h | 20-request race and worker crash recover correctly | Full race/recovery variant passes |
 | [ ] | 10. Release and rehearsal | 2–4 h | Clean checkout, cold start, soak, and demo are stable | Release checklist passes |
@@ -774,7 +774,7 @@ over_limit_mutations                 = 0
 all_receipts_stable                  = true
 ```
 
-The core headless scenario passed repeatedly. Phase 7 — authoritative evidence and privacy — is next.
+The core headless scenario passed repeatedly. G6 is complete; Phase 7 — authoritative evidence and privacy — passed next.
 
 ### Stop condition
 
@@ -790,19 +790,19 @@ Turn protocol behavior into machine-derived proof that judges and auditors can i
 
 ### Tasks
 
-- [ ] Add sanitized verifier evidence views and queries.
-- [ ] Add the Action Simulator evidence endpoint.
-- [ ] Build the invariant report from verifier and action state.
-- [ ] Persist allowlisted protocol events.
-- [ ] Add the safe SSE event stream.
-- [ ] Support reconnect from the last event sequence.
-- [ ] Accept linkability-test presentations transiently from the wallet.
-- [ ] Run every pair of distinct accepted presentations.
-- [ ] Verify the exact retry returns SAME_USE.
-- [ ] Do not persist raw presentations or grouping labels.
-- [ ] Return INCOMPLETE if the linkability adapter is unavailable.
-- [ ] Add schema, value, log, outbox, event, export, import-graph, and browser-bundle scanners.
-- [ ] Ensure every final UI metric can be supplied by the Evidence API.
+- [x] Add sanitized verifier evidence views and queries.
+- [x] Add the Action Simulator evidence endpoint.
+- [x] Build the invariant report from verifier and action state.
+- [x] Persist allowlisted protocol events.
+- [x] Add the safe SSE event stream.
+- [x] Support reconnect from the last event sequence.
+- [x] Accept linkability-test presentations transiently from the wallet.
+- [x] Run every pair of distinct accepted presentations.
+- [x] Verify the exact retry returns SAME_USE.
+- [x] Do not persist raw presentations or grouping labels.
+- [x] Return INCOMPLETE if the linkability adapter is unavailable.
+- [x] Add schema, value, log, outbox, event, export, import-graph, and browser-bundle scanners.
+- [x] Ensure every final UI metric can be supplied by the Evidence API.
 
 ### Key files
 
@@ -863,13 +863,15 @@ all_invariants                         = PASS
 
 One API response and one audit run prove every required claim from authoritative sources.
 
-### Exit gate — G7 Evidence P0
+### Exit gate — G7 Evidence P0 — passed
 
 - All required invariant fields are present and PASS.
 - No value is copied from a frontend-maintained counter.
 - Linkability inputs disappear after the request.
 - Schema, persisted values, logs, events, outbox, exports, and browser assets pass the privacy suite.
 - The evidence result remains correct after browser refresh and service restart.
+
+The Phase 7 implementation and command evidence are recorded in [the Phase 7 record](docs/phase-7-evidence-privacy.md). The required evidence boundary is now available to Phase 8 UI work.
 
 ### Stop condition
 
@@ -1469,7 +1471,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 4. First complete use | G4 | [x] |
 | 5. Safe retry | G5 | [x] |
 | 6. Bound and rejection | G6 | [x] |
-| 7. Evidence and privacy | G7 | [ ] |
+| 7. Evidence and privacy | G7 | [x] |
 | 8. Judge experience | G8 — P0 lock | [ ] |
 | 9. P1 resilience | G9 — optional | [ ] |
 | 10. Release | G10 — submission | [ ] |

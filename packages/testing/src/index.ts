@@ -6,3 +6,4 @@ export function createFixedClock(iso: string): () => Date {
 }
 
 export * from "./scenarios/golden-scenario.js";
+export * from "./scanners/forbidden-data.js";

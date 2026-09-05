@@ -2,6 +2,9 @@ import {
   challengeResponseSchema,
   demoFaultResponseSchema,
   demoResetResponseSchema,
+  demoLinkabilityRequestSchema,
+  evidenceReportSchema,
+  linkabilityReportSchema,
   issuanceResponseSchema,
   policySchema,
   useResultSchema,
@@ -10,6 +13,8 @@ import {
   type ChallengeResponse,
   type DemoFaultResponse,
   type DemoResetResponse,
+  type EvidenceReport,
+  type LinkabilityReport,
   type IssuanceResponse,
   type Policy,
   type Presentation,
@@ -32,6 +37,9 @@ export interface ApiClient {
   getUseStatus(useId: string): Promise<UseStatusResponse>;
   armDropNextAck(operationId: string): Promise<DemoFaultResponse>;
   resetDemo(): Promise<DemoResetResponse>;
+  getEvidence(): Promise<EvidenceReport>;
+  runLinkabilityTest(presentations: Presentation[]): Promise<LinkabilityReport>;
+  eventStreamUrl(after?: number): string;
 }
 
 export class ApiTransportError extends Error {
@@ -143,6 +151,23 @@ export function createApiClient(baseUrl: string): ApiClient {
           body: JSON.stringify({}),
         })
       );
+    },
+    async getEvidence() {
+      return evidenceReportSchema.parse(await request("/v1/demo/evidence"));
+    },
+    async runLinkabilityTest(presentations) {
+      const input = demoLinkabilityRequestSchema.parse({ presentations });
+      return linkabilityReportSchema.parse(
+        await request("/v1/demo/linkability-test", {
+          method: "POST",
+          body: JSON.stringify(input),
+        })
+      );
+    },
+    eventStreamUrl(after) {
+      const url = new URL("/v1/demo/events/stream", baseUrl);
+      if (after !== undefined) url.searchParams.set("after", String(after));
+      return url.toString();
     },
   };
 }

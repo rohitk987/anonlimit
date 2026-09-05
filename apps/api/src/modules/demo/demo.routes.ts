@@ -1,9 +1,16 @@
-import { demoDropAckRequestSchema, demoResetRequestSchema } from "@anonlimit/contracts";
+import {
+  demoDropAckRequestSchema,
+  demoLinkabilityRequestSchema,
+  demoResetRequestSchema,
+} from "@anonlimit/contracts";
 import { serializePublicError } from "@anonlimit/observability";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { ProtocolPublicError } from "../protocol/protocol-service.js";
 import type { LostAckFaultController } from "./fault-controller.js";
 import type { DemoResetController } from "./reset-demo.js";
+import type { EvidenceController } from "../evidence/evidence-controller.js";
+import { registerEventRoutes } from "../events/events.routes.js";
+import type { EventStreamController } from "../events/events-controller.js";
 
 async function requireJson(request: FastifyRequest): Promise<void> {
   const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase();
@@ -13,7 +20,9 @@ async function requireJson(request: FastifyRequest): Promise<void> {
 export function registerDemoRoutes(
   app: FastifyInstance,
   faultController?: LostAckFaultController,
-  resetController?: DemoResetController
+  resetController?: DemoResetController,
+  evidenceController?: EvidenceController,
+  eventController?: EventStreamController
 ): void {
   if (faultController) {
     app.post(
@@ -47,4 +56,15 @@ export function registerDemoRoutes(
       return resetController.reset(request.id);
     });
   }
+
+  if (evidenceController) {
+    app.get("/v1/demo/evidence", async () => evidenceController.getEvidence());
+    app.post("/v1/demo/linkability-test", { onRequest: requireJson }, async (request) => {
+      const parsed = demoLinkabilityRequestSchema.safeParse(request.body);
+      if (!parsed.success) throw new ProtocolPublicError("BAD_REQUEST");
+      return evidenceController.runLinkability(parsed.data, request.id);
+    });
+  }
+
+  if (eventController) registerEventRoutes(app, eventController);
 }

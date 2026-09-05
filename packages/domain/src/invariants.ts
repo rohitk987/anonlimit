@@ -2,7 +2,7 @@ import { canonicalJson } from "./canonical-json.js";
 import { DomainError } from "./errors.js";
 import { type AcceptedUse, type Receipt } from "./retry-classifier.js";
 
-export type CheckStatus = "PASS" | "FAIL" | "NOT_RUN";
+export type CheckStatus = "PASS" | "FAIL" | "NOT_RUN" | "INCOMPLETE";
 export interface CheckResult {
   readonly status: CheckStatus;
 }
@@ -50,6 +50,8 @@ export interface EvidenceObservations {
     readonly distinctUseRefs: readonly string[];
     readonly pairs: readonly LinkabilityPair[];
   } | null;
+  /** Set when the opaque audit adapter is unavailable; this is never treated as a pass. */
+  readonly linkabilityUnavailable?: boolean;
 }
 function check(value: boolean | null): CheckResult {
   return { status: value === null ? "NOT_RUN" : value ? "PASS" : "FAIL" };
@@ -218,9 +220,11 @@ export function calculateInvariants(observations: EvidenceObservations) {
         ? privacy.storedHolderIdentities === 0 && privacy.credentialWideIdentifiersStored === 0
         : null
     ),
-    distinctUseUnlinkability: check(
-      auditBound === false ? false : auditBound && linkability ? allPairs(linkability) : null
-    ),
+    distinctUseUnlinkability: observations.linkabilityUnavailable
+      ? { status: "INCOMPLETE" }
+      : check(
+          auditBound === false ? false : auditBound && linkability ? allPairs(linkability) : null
+        ),
     retryRecognition: check(
       repeatPairs.length
         ? auditBound === null
@@ -242,9 +246,11 @@ export function calculateInvariants(observations: EvidenceObservations) {
   const statuses = Object.values(checks).map((value) => value.status);
   const overall: CheckStatus = statuses.includes("FAIL")
     ? "FAIL"
-    : statuses.every((status) => status === "PASS")
-      ? "PASS"
-      : "NOT_RUN";
+    : statuses.includes("INCOMPLETE")
+      ? "INCOMPLETE"
+      : statuses.every((status) => status === "PASS")
+        ? "PASS"
+        : "NOT_RUN";
   return {
     declaredLimit: observations.declaredLimit,
     counts: {

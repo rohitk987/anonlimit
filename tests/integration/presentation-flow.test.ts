@@ -436,6 +436,15 @@ describe.sequential("Phase 3 presentation HTTP flow", () => {
     ]);
     expect(events.rows).toEqual([
       {
+        event_name: "CREDENTIAL_ISSUED",
+        from_state: null,
+        to_state: null,
+        decision_code: null,
+        usage_delta: 0,
+        action_delta: 0,
+        masked_use_ref: null,
+      },
+      {
         event_name: "USE_ACCEPTED",
         from_state: "UNSEEN",
         to_state: "ACCEPTED_PENDING_ACTION",

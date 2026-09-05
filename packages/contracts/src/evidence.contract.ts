@@ -9,7 +9,7 @@ import {
 } from "./primitives.js";
 import { useStateSchema } from "./use-result.contract.js";
 
-export const checkStatusSchema = z.enum(["PASS", "FAIL", "NOT_RUN"]);
+export const checkStatusSchema = z.enum(["PASS", "FAIL", "NOT_RUN", "INCOMPLETE"]);
 export const invariantCheckSchema = z.strictObject({ status: checkStatusSchema });
 const measuredCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable();
 export const evidenceCountsSchema = z.strictObject({
@@ -54,7 +54,8 @@ export const linkabilityReportSchema = z
   })
   .refine(
     (report) => {
-      if (report.status === "NOT_RUN") return report.pairs.length === 0;
+      if (report.status === "NOT_RUN" || report.status === "INCOMPLETE")
+        return report.pairs.length === 0;
       if (report.pairs.length === 0) return false;
       const pairKeys = report.pairs.map((pair) =>
         [pair.leftUseRef, pair.rightUseRef].sort().join(":")
@@ -92,9 +93,11 @@ export const evidenceReportSchema = z
     const statuses = Object.values(report.checks).map((check) => check.status);
     const expected = statuses.includes("FAIL")
       ? "FAIL"
-      : statuses.every((status) => status === "PASS")
-        ? "PASS"
-        : "NOT_RUN";
+      : statuses.includes("INCOMPLETE")
+        ? "INCOMPLETE"
+        : statuses.every((status) => status === "PASS")
+          ? "PASS"
+          : "NOT_RUN";
     if (report.overall !== expected)
       context.addIssue({
         code: "custom",
