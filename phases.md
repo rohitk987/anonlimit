@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–9 complete; G9 full resilience passed; Phase 10 remains |
+| Status | Phases 0–10 complete; G10 release submission passed |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -108,7 +108,7 @@ flowchart LR
     T -.-> P9
 ```
 
-Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
+Phase 9 is optional for a 24-hour event. Phase 10 is required for a full-project submission.
 
 ---
 
@@ -126,7 +126,7 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 | [x] | 7. Evidence and privacy | 3–4 h | Backend-derived invariant and linkability report passes | Evidence, integration, and privacy suites pass |
 | [x] | 8. Judge experience | 3–5 h | Guided browser demo finishes under three minutes | Playwright P0 golden flow passes |
 | [x] | 9. P1 resilience | 3–5 h | 20-request race and worker crash recover correctly | Full race/recovery variant passes |
-| [ ] | 10. Release and rehearsal | 2–4 h | Clean checkout, cold start, soak, and demo are stable | Release checklist passes |
+| [x] | 10. Release and rehearsal | 2–4 h | Clean checkout, cold start, soak, and demo are stable | G10 release checklist passed |
 
 The estimates are timeboxes, not permission to skip a failing gate.
 
@@ -1062,7 +1062,8 @@ A live race and failure-recovery proof that preserves the P0 invariants.
 - No fault releases an accepted slot or duplicates an effect.
 
 The deterministic golden race and PostgreSQL worker fault matrix passed. See the [Phase 9 resilience
-record](docs/phase-9-resilience.md). Phase 10 release packaging and rehearsal remain.
+record](docs/phase-9-resilience.md). Phase 10 release packaging and rehearsal also passed; see the
+[Phase 10 release record](docs/phase-10-release.md).
 
 ### Rollback rule
 
@@ -1080,28 +1081,28 @@ For a declared minimum 24-hour P0 release that omits Phase 9, run the core P0 go
 
 ### Tasks
 
-- [ ] Finalize pinned Dockerfiles.
-- [ ] Finalize Docker Compose startup order.
-- [ ] Run migrations and seed as short-lived jobs.
-- [ ] Add health and readiness checks.
-- [ ] Verify worker has no public port.
-- [ ] Verify internal Action Simulator routes require a service token.
-- [ ] Verify demo routes are absent when DEMO_MODE is false.
-- [ ] Expose all stable root commands.
-- [ ] Add CI gates.
-- [ ] Complete README setup and run instructions.
-- [ ] Complete demo script and architecture explanation.
-- [ ] Complete threat-model and limitations summary.
-- [ ] Test a fresh checkout and empty database.
-- [ ] Run the full fault matrix.
-- [ ] Run at least ten consecutive full scenarios in release CI.
-- [ ] Run the 100-iteration final soak.
-- [ ] Perform three timed rehearsals:
-  - Normal path.
-  - Slow-worker or page-refresh recovery.
-  - Clean Docker Compose startup.
-- [ ] Record a backup demo after the live system is stable.
-- [ ] Leave a final submission buffer.
+- [x] Finalize pinned Dockerfiles.
+- [x] Finalize Docker Compose startup order.
+- [x] Run migrations and seed as short-lived jobs.
+- [x] Add health and readiness checks.
+- [x] Verify worker has no public port.
+- [x] Verify internal Action Simulator routes require a service token.
+- [x] Verify demo routes are absent when DEMO_MODE is false.
+- [x] Expose all stable root commands.
+- [x] Add CI gates.
+- [x] Complete README setup and run instructions.
+- [x] Complete demo script and architecture explanation.
+- [x] Complete threat-model and limitations summary.
+- [x] Test a fresh checkout and empty database.
+- [x] Run the full fault matrix.
+- [x] Run at least ten consecutive full scenarios in release CI.
+- [x] Run the 100-iteration final soak.
+- [x] Perform three timed rehearsals:
+  - [x] Normal path.
+  - [x] Slow-worker or page-refresh recovery.
+  - [x] Clean Docker Compose startup.
+- [x] Record a backup demo after the live system is stable.
+- [x] Leave a final submission buffer.
 
 ### Required full quality gate
 
@@ -1147,7 +1148,10 @@ docs/threat-model.md
 - No unresolved P0 TODO, known invariant defect, or manual database workaround remains.
 - Live demo repeatedly completes under three minutes.
 
-One intermittent soak failure blocks release. Rerunning until it happens to pass does not waive the defect.
+G10 passed on 2026-09-06. The local release rehearsal rebuilt the pinned Compose image, started the
+empty-database migration and seed jobs, waited for API/web readiness, ran the full quality gate, and
+completed ten race scenarios. The final standalone soak completed 100 out of 100 race scenarios.
+The Phase 10 release record contains the command evidence and limitations.
 
 ---
 
@@ -1474,6 +1478,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 7. Evidence and privacy | G7 | [x] |
 | 8. Judge experience | G8 — P0 lock | [x] |
 | 9. P1 resilience | G9 — optional | [ ] |
-| 10. Release | G10 — submission | [ ] |
+| 10. Release | G10 — submission | [x] |
 
-The project is done only when G10 passes. A polished screen is not completion; a reproducible system that proves every invariant is completion.
+The project is complete because G10 passes. A polished screen is not completion; a reproducible system
+that proves every invariant is completion.

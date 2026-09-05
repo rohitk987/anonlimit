@@ -2,7 +2,7 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phases 0–9 are implemented, and G9 full resilience has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The Demo Lab completes all three hidden slots, recovers a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, rejects an authenticated fourth-slot proof without mutation, resets one server-owned run, and renders backend-derived evidence, safe events, invariant checks, a linkability matrix, and the opaque-crypto assumptions. The Phase 9 golden variant also proves a synchronized twenty-request race and worker crash recovery.
+**Phases 0–10 are implemented, and G10 release submission has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The Demo Lab completes all three hidden slots, recovers a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, rejects an authenticated fourth-slot proof without mutation, resets one server-owned run, and renders backend-derived evidence, safe events, invariant checks, a linkability matrix, and the opaque-crypto assumptions. The Phase 9 golden variant proves a synchronized twenty-request race and worker crash recovery, while the Phase 10 release scripts verify pinned images, cold start, readiness, full quality, and a 100-run soak.
 
 Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 7 record](docs/phase-7-evidence-privacy.md), [Phase 6 record](docs/phase-6-bound-reset.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
@@ -36,24 +36,28 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the Phase 9 resilience slice
+## Verify the release
 
 ```powershell
 pnpm check:phase9
+pnpm check:release
 pnpm audit:privacy
 pnpm demo:golden
 pnpm demo:golden:race
+pnpm demo:golden:soak
 pnpm demo:reset
+pnpm wait:services
+pnpm release:rehearsal
 pnpm test:integration
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm check:phase9` runs the cumulative backend, resilience, and privacy gate. `pnpm audit:privacy` scans generated browser assets and local secret markers without printing values. `pnpm demo:golden` runs the cumulative headless golden scenario, including the Phase 9 race. `pnpm demo:golden:race` runs the focused twenty-request race. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). `pnpm test:e2e` runs two complete Phase 8 rehearsals plus the wallet recovery regressions; the narration is in [docs/demo-script.md](docs/demo-script.md).
+`pnpm check:release` runs the full formatting, lint, type, unit, contract, integration, privacy, build, and browser gate. `pnpm wait:services` checks the API readiness endpoint and web response after Compose startup. `pnpm demo:golden:soak` defaults to 100 synchronized race scenarios; set `GOLDEN_SOAK_RUNS=10` for the CI repetition. `pnpm release:rehearsal` performs a clean Compose rebuild, readiness check, full gate, ten-run soak, and cleanup while preserving the database volume. `pnpm audit:privacy` scans generated browser assets and local secret markers without printing values. `pnpm demo:golden` runs the cumulative headless golden scenario, including the Phase 9 race. `pnpm demo:golden:race` runs the focused twenty-request race. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). `pnpm test:e2e` runs two complete Phase 8 rehearsals plus the wallet recovery regressions; the narration is in [docs/demo-script.md](docs/demo-script.md).
 
 A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the cumulative gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm check:phase9`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, `pnpm test:integration:phase7`, `pnpm test:integration:phase9`, `pnpm test:privacy`, and `pnpm audit:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; G7 certifies backend-derived evidence, safe event replay, transient linkability auditing, and privacy scanning; G8 certifies the responsive guided browser flow; G9 certifies the synchronized race and worker recovery matrix. Phase 10 release remains.
+Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm check:phase9`, `pnpm check:release`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, `pnpm test:integration:phase7`, `pnpm test:integration:phase9`, `pnpm test:privacy`, and `pnpm audit:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; G7 certifies backend-derived evidence, safe event replay, transient linkability auditing, and privacy scanning; G8 certifies the responsive guided browser flow; G9 certifies the synchronized race and worker recovery matrix; G10 certifies the pinned release, cold start, full quality gate, ten-run CI repetition, and 100-run final soak.
 
 ## Workspace
 
@@ -71,6 +75,6 @@ Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pn
 | `packages/observability` | Log field allowlist, including child logger bindings                                     |
 | `packages/testing`       | Test-only helpers prohibited in production imports                                       |
 
-The local foundation image uses Vite preview and includes build tooling. Release packaging belongs to Phase 10. The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
+The local foundation image uses Vite preview and includes build tooling. Release packaging is recorded in [docs/phase-10-release.md](docs/phase-10-release.md), with the threat model and deployment limitations in [docs/threat-model.md](docs/threat-model.md). The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
 
 Product requirements and implementation gates are in [prd.md](prd.md), [architecture.md](architecture.md), [phases.md](phases.md), and [rules.md](rules.md).

@@ -1,4 +1,4 @@
-name: Phase 9 resilience and P0
+name: Phase 10 release and P0
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  phase9-resilience-p0:
+  release-p0:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -23,11 +23,16 @@ jobs:
       - run: docker compose config --quiet
       - run: docker compose build api
       - run: docker compose up -d --no-build --wait --wait-timeout 120
+      - run: pnpm wait:services
       - run: pnpm test:integration:live
       - run: pnpm exec vitest run --project integration tests/integration/phase8-boundary.test.ts
       - run: pnpm audit:privacy
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - name: Run ten full race scenarios
+        env:
+          GOLDEN_SOAK_RUNS: "10"
+        run: pnpm demo:golden:soak
       - name: Stop this job's stack
         if: always()
         run: docker compose down

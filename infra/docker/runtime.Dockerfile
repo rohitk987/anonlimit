@@ -1,4 +1,5 @@
-FROM node:24-bookworm-slim AS foundation
+# Digest-pinned Node 24 image (multi-architecture manifest).
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS foundation
 WORKDIR /app
 RUN npm install --global pnpm@11.19.0
 COPY . .

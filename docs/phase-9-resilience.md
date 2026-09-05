@@ -33,4 +33,5 @@ and [outbox-recovery.test.ts](../tests/integration/outbox-recovery.test.ts). Use
 `pnpm demo:golden:race` for the focused race or `pnpm test:integration:phase9` for the complete
 resilience slice.
 
-G9 is complete. Phase 10 release packaging and rehearsal remain.
+G9 is complete. The final release packaging and rehearsal are recorded in the
+[Phase 10 release record](phase-10-release.md).

@@ -691,15 +691,20 @@ describe.sequential("Phase 6 reusable headless golden scenario", () => {
 
   it("Phase9GoldenVariant passes with twenty overlapping third-use copies", async () => {
     if (!driver) throw new Error("TEST_DRIVER_UNAVAILABLE");
-    const report = await runGoldenScenario(driver, { raceThirdUse: true, raceCopies: 20 });
-    expect(report.invariants).toEqual({
-      declaredLimit: 3,
-      acceptedDistinctUses: 3,
-      committedExternalActions: 3,
-      extraUsesFromRetry: 0,
-      extraActionsFromRetry: 0,
-      overLimitMutations: 0,
-      allReceiptsStable: true,
-    });
-  }, 60_000);
+    const soakRuns = Number(process.env.GOLDEN_SOAK_RUNS ?? "1");
+    if (!Number.isSafeInteger(soakRuns) || soakRuns < 1 || soakRuns > 100)
+      throw new Error("GOLDEN_SOAK_RUNS_INVALID");
+    for (let run = 0; run < soakRuns; run += 1) {
+      const report = await runGoldenScenario(driver, { raceThirdUse: true, raceCopies: 20 });
+      expect(report.invariants).toEqual({
+        declaredLimit: 3,
+        acceptedDistinctUses: 3,
+        committedExternalActions: 3,
+        extraUsesFromRetry: 0,
+        extraActionsFromRetry: 0,
+        overLimitMutations: 0,
+        allReceiptsStable: true,
+      });
+    }
+  }, 100_000);
 });
