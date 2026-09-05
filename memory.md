@@ -3,7 +3,7 @@
 Last updated: 2026-09-05 (Asia/Calcutta).
 Project root: `D:/myonsite`.
 Current milestone: **Phases 0–6 complete; G6 Backend P0 passed. Phase 7 is next.**
-Git branch: `codex/phase-2-protocol`. Phase 5 is committed at `d3303db` (`feat: complete phase 5 safe retry`); this memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
+Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); this memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
 
@@ -88,7 +88,7 @@ Detailed Phase 5 behavior and evidence: [Phase 5 record](docs/phase-5-safe-retry
 | Retry invariant           | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned              |
 | Runtime privacy           | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                    |
 | Phase 6 golden scenario   | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                   |
-| Hosted CI                 | Workflow still targets the previous phase; hosted execution has not been observed                                          |
+| Hosted CI                 | Phase 6 workflow configured; hosted execution has not been observed                                                        |
 
 The immutable verifier migration digests in the persistent database are:
 
