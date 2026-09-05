@@ -3,7 +3,7 @@
 Last updated: 2026-09-06 (Asia/Calcutta).
 Project root: `D:/myonsite`.
 Current milestone: **Phases 0–7 complete; G7 Evidence P0 passed. Phase 8 is next.**
-Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); the Phase 7 implementation and handoff are recorded in the current change. Check `git status` and `git log -1` for the current revision.
+Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); Phase 7 implementation is committed at `ec391b6` (`feat: complete phase 7 evidence privacy`). This memory update is the follow-up handoff commit. Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
 
