@@ -14,6 +14,7 @@ import {
   type ProtocolResponse,
   type ProtocolService,
 } from "./protocol-service.js";
+import type { LostAckFaultController } from "../demo/fault-controller.js";
 
 interface RuntimeSchema<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
@@ -38,10 +39,23 @@ async function respond<T>(
   app: FastifyInstance,
   reply: FastifyReply,
   traceId: string,
-  operation: () => Promise<ProtocolResponse<T>>
+  operation: () => Promise<ProtocolResponse<T>>,
+  dropAfterResult?: (result: ProtocolResponse<T>) => Promise<boolean>
 ): Promise<FastifyReply> {
   try {
     const result = await operation();
+    if (dropAfterResult && (await dropAfterResult(result))) {
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        "Content-Type": "application/json",
+        "Content-Length": "2",
+        Connection: "close",
+      });
+      // A partial body proves the server began an acknowledgement while preventing the browser
+      // network stack from transparently replaying a request whose response had no bytes at all.
+      reply.raw.end("{");
+      return reply;
+    }
     return reply.code(result.statusCode).send(result.body);
   } catch (error) {
     const failure = publicFailure(error);
@@ -71,8 +85,12 @@ async function requireJson(request: FastifyRequest, reply: FastifyReply): Promis
   );
 }
 
-/** Registers only the Phase 3 public protocol surface. App-wide limits and CORS stay in app.ts. */
-export function registerProtocolRoutes(app: FastifyInstance, service: ProtocolService): void {
+/** Registers the public protocol surface. App-wide limits and CORS stay in app.ts. */
+export function registerProtocolRoutes(
+  app: FastifyInstance,
+  service: ProtocolService,
+  faultController?: LostAckFaultController
+): void {
   app.get("/v1/policies/:id/versions/:version", (request, reply) =>
     respond(app, reply, request.id, () =>
       service.getPolicy(parse(policyPathSchema, request.params))
@@ -98,11 +116,26 @@ export function registerProtocolRoutes(app: FastifyInstance, service: ProtocolSe
   );
 
   app.post("/v1/verifier/presentations", { onRequest: requireJson }, (request, reply) =>
-    respond(app, reply, request.id, async () => {
-      const presentation = parse(presentationSchema, request.body);
-      const operationId = parse(idempotencyHeaderSchema, request.headers["idempotency-key"]);
-      if (operationId !== presentation.operationId) throw new ProtocolPublicError("BAD_REQUEST");
-      return service.present(presentation, request.id);
-    })
+    respond(
+      app,
+      reply,
+      request.id,
+      async () => {
+        const presentation = parse(presentationSchema, request.body);
+        const operationId = parse(idempotencyHeaderSchema, request.headers["idempotency-key"]);
+        if (operationId !== presentation.operationId) throw new ProtocolPublicError("BAD_REQUEST");
+        return service.present(presentation, request.id);
+      },
+      faultController
+        ? (result) => {
+            const presentation = parse(presentationSchema, request.body);
+            return faultController.consumeAfterDurableResult({
+              operationId: presentation.operationId,
+              traceId: request.id,
+              response: result.body,
+            });
+          }
+        : undefined
+    )
   );
 }

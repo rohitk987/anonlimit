@@ -9,6 +9,8 @@ import {
   registerProtocolRoutes,
   type ProtocolService,
 } from "./modules/protocol/index.js";
+import { registerDemoRoutes } from "./modules/demo/demo.routes.js";
+import type { LostAckFaultController } from "./modules/demo/fault-controller.js";
 
 function ownCode(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -21,7 +23,8 @@ function ownCode(value: unknown): string | null {
 export function createApp(
   config: ApiEnv,
   checkDatabase: () => Promise<void>,
-  protocolService?: ProtocolService
+  protocolService?: ProtocolService,
+  faultController?: LostAckFaultController
 ): FastifyInstance {
   const logger: FastifyBaseLogger = createSafeLogger(config.logLevel);
   const app = Fastify({
@@ -88,6 +91,8 @@ export function createApp(
         .send(healthResponseSchema.parse({ status: "unavailable", service: "api", phase: 1 }));
     }
   });
-  if (protocolService) registerProtocolRoutes(app, protocolService);
+  const enabledFaultController = config.demoMode ? faultController : undefined;
+  if (protocolService) registerProtocolRoutes(app, protocolService, enabledFaultController);
+  if (config.demoMode && faultController) registerDemoRoutes(app, faultController);
   return app;
 }

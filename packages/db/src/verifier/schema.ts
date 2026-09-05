@@ -345,14 +345,27 @@ export const demoFaults = verifierSchema.table(
     faultName: varchar("fault_name", { length: 64 }).primaryKey(),
     enabled: boolean("enabled").default(false).notNull(),
     oneShot: boolean("one_shot").default(true).notNull(),
+    demoRunId: uuid("demo_run_id"),
+    operationId: uuid("operation_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
   (table) => [
+    foreignKey({
+      name: "fk_demo_faults_run",
+      columns: [table.demoRunId],
+      foreignColumns: [demoRuns.demoRunId],
+    }),
     check(
       "ck_demo_faults_name",
       sql`${table.faultName} IN ('DROP_NEXT_ACK', 'FAIL_NEXT_ACTION', 'CRASH_NEXT_WORKER')`
+    ),
+    check(
+      "ck_demo_faults_drop_ack_target",
+      sql`${table.faultName} <> 'DROP_NEXT_ACK'
+        OR NOT ${table.enabled}
+        OR (${table.oneShot} AND ${table.demoRunId} IS NOT NULL AND ${table.operationId} IS NOT NULL)`
     ),
   ]
 );

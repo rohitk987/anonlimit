@@ -5,7 +5,11 @@ import {
   type Policy,
   type Receipt,
 } from "@anonlimit/domain";
-import { useStatusResponseSchema, type UseStatusResponse } from "@anonlimit/contracts";
+import {
+  useStatusResponseSchema,
+  type UseResult,
+  type UseStatusResponse,
+} from "@anonlimit/contracts";
 import { createConnectionLifecycle, createPool } from "../connection.js";
 import {
   AcceptancePreconditionError,
@@ -73,6 +77,27 @@ export interface AcceptanceInput {
   readonly actionKey: string;
   readonly payloadDigest: string;
   readonly action: Action;
+  readonly maskedUseRef: string;
+}
+
+export interface ArmedDropAckFault {
+  readonly demoRunId: string;
+  readonly operationId: string;
+}
+
+export interface RetryEventInput {
+  readonly eventIds: readonly string[];
+  readonly traceId: string;
+  readonly useId: string;
+  readonly maskedUseRef: string;
+  readonly result: UseResult;
+}
+
+export interface DropAckConsumptionInput {
+  readonly eventId: string;
+  readonly traceId: string;
+  readonly operationId: string;
+  readonly useId: string;
   readonly maskedUseRef: string;
 }
 
@@ -282,6 +307,11 @@ export interface VerifierDatabase {
   findAcceptedUses(input: AcceptedUseLookup): Promise<ExistingAcceptedUses>;
   getUseStatus(useId: string): Promise<UseStatusResponse | null>;
   acceptPresentation(input: AcceptanceInput): Promise<AcceptedUse>;
+  recordRetry(input: RetryEventInput): Promise<void>;
+  armDropNextAck(operationId: string): Promise<ArmedDropAckFault>;
+  isDropNextAckArmed(operationId: string): Promise<boolean>;
+  cancelDropNextAck(operationId: string): Promise<void>;
+  consumeDropNextAckAfterSuccess(input: DropAckConsumptionInput): Promise<boolean>;
 }
 
 export function createVerifierDatabase(connectionString: string): VerifierDatabase {
@@ -546,6 +576,194 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     }
   };
 
+  const recordRetry = async (input: RetryEventInput): Promise<void> => {
+    const eventNames =
+      input.result.status === "SUCCEEDED"
+        ? (["RETRY_MATCHED", "RETRY_RESOLVED", "CACHED_RECEIPT_RETURNED"] as const)
+        : (["RETRY_MATCHED", input.result.code] as const);
+    if (input.eventIds.length !== eventNames.length) throw new Error("EVENT_IDS_INVALID");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const metadata = await client.query<{
+        demo_run_id: string;
+        policy_id: string;
+        policy_version: number;
+      }>(
+        `SELECT u.demo_run_id, c.policy_id, c.policy_version
+         FROM verifier.use_records AS u
+         JOIN verifier.verification_challenges AS c ON c.challenge_id = u.challenge_id
+         WHERE u.use_id = $1`,
+        [input.useId]
+      );
+      const row = metadata.rows[0];
+      if (!row) throw new Error("DATABASE_INCONSISTENT");
+      for (let index = 0; index < eventNames.length; index += 1) {
+        const eventId = input.eventIds[index];
+        const eventName = eventNames[index];
+        if (!eventId || !eventName) throw new Error("EVENT_IDS_INVALID");
+        await client.query(
+          `INSERT INTO verifier.protocol_events (
+             event_id, event_name, trace_id, demo_run_id, policy_id, policy_version,
+             from_state, to_state, decision_code, usage_delta, action_delta, masked_use_ref
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,0,0,$9)`,
+          [
+            eventId,
+            eventName,
+            input.traceId,
+            row.demo_run_id,
+            row.policy_id,
+            row.policy_version,
+            input.result.status,
+            input.result.code,
+            input.maskedUseRef,
+          ]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
+  const armDropNextAck = async (operationId: string): Promise<ArmedDropAckFault> => {
+    const result = await pool.query<{ demo_run_id: string; operation_id: string }>(
+      `INSERT INTO verifier.demo_faults (
+         fault_name, enabled, one_shot, demo_run_id, operation_id, updated_at
+       )
+       SELECT 'DROP_NEXT_ACK', true, true, demo_run_id, $1, clock_timestamp()
+       FROM verifier.demo_runs
+       WHERE status = 'ACTIVE'
+       ON CONFLICT (fault_name) DO UPDATE
+       SET enabled = true,
+           one_shot = true,
+           demo_run_id = EXCLUDED.demo_run_id,
+           operation_id = EXCLUDED.operation_id,
+           updated_at = clock_timestamp()
+       RETURNING demo_run_id, operation_id`,
+      [operationId]
+    );
+    const row = result.rows[0];
+    if (!row || result.rows.length !== 1) throw new Error("DATABASE_INCONSISTENT");
+    return { demoRunId: row.demo_run_id, operationId: row.operation_id };
+  };
+
+  const isDropNextAckArmed = async (operationId: string): Promise<boolean> => {
+    const result = await pool.query<{ armed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM verifier.demo_faults AS f
+         JOIN verifier.demo_runs AS r ON r.demo_run_id = f.demo_run_id
+         WHERE f.fault_name = 'DROP_NEXT_ACK'
+           AND f.enabled = true
+           AND f.one_shot = true
+           AND f.operation_id = $1
+           AND r.status = 'ACTIVE'
+       ) AS armed`,
+      [operationId]
+    );
+    return result.rows[0]?.armed === true;
+  };
+
+  const cancelDropNextAck = async (operationId: string): Promise<void> => {
+    await pool.query(
+      `UPDATE verifier.demo_faults
+       SET enabled = false,
+           demo_run_id = NULL,
+           operation_id = NULL,
+           updated_at = clock_timestamp()
+       WHERE fault_name = 'DROP_NEXT_ACK'
+         AND enabled = true
+         AND one_shot = true
+         AND operation_id = $1`,
+      [operationId]
+    );
+  };
+
+  const consumeDropNextAckAfterSuccess = async (
+    input: DropAckConsumptionInput
+  ): Promise<boolean> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const fault = await client.query(
+        `SELECT fault_name
+         FROM verifier.demo_faults
+         WHERE fault_name = 'DROP_NEXT_ACK'
+           AND enabled = true
+           AND one_shot = true
+           AND operation_id = $1
+         FOR UPDATE`,
+        [input.operationId]
+      );
+      if (fault.rows.length === 0) {
+        await client.query("COMMIT");
+        return false;
+      }
+      const durable = await client.query<{
+        demo_run_id: string;
+        policy_id: string;
+        policy_version: number;
+      }>(
+        `SELECT u.demo_run_id, c.policy_id, c.policy_version
+         FROM verifier.use_records AS u
+         JOIN verifier.verification_challenges AS c ON c.challenge_id = u.challenge_id
+         JOIN verifier.outbox_events AS o ON o.use_id = u.use_id
+         JOIN verifier.demo_faults AS f
+           ON f.fault_name = 'DROP_NEXT_ACK' AND f.demo_run_id = u.demo_run_id
+         JOIN verifier.demo_runs AS r
+           ON r.demo_run_id = u.demo_run_id AND r.status = 'ACTIVE'
+         WHERE u.use_id = $1
+           AND u.operation_id = $2
+           AND u.status = 'SUCCEEDED'
+           AND u.cached_result IS NOT NULL
+           AND o.state = 'DELIVERED'
+           AND o.delivered_at IS NOT NULL`,
+        [input.useId, input.operationId]
+      );
+      const row = durable.rows[0];
+      if (!row || durable.rows.length !== 1) {
+        await client.query("COMMIT");
+        return false;
+      }
+      const consumed = await client.query(
+        `UPDATE verifier.demo_faults
+         SET enabled = false, updated_at = clock_timestamp()
+         WHERE fault_name = 'DROP_NEXT_ACK'
+           AND enabled = true
+           AND one_shot = true
+           AND demo_run_id = $1
+           AND operation_id = $2`,
+        [row.demo_run_id, input.operationId]
+      );
+      if (consumed.rowCount !== 1) throw new Error("DATABASE_INCONSISTENT");
+      await client.query(
+        `INSERT INTO verifier.protocol_events (
+           event_id, event_name, trace_id, demo_run_id, policy_id, policy_version,
+           from_state, to_state, decision_code, usage_delta, action_delta, masked_use_ref
+         ) VALUES ($1,'ACK_DROPPED',$2,$3,$4,$5,'SUCCEEDED','SUCCEEDED','SUCCEEDED',0,0,$6)`,
+        [
+          input.eventId,
+          input.traceId,
+          row.demo_run_id,
+          row.policy_id,
+          row.policy_version,
+          input.maskedUseRef,
+        ]
+      );
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
   return {
     ...lifecycle,
     check,
@@ -558,5 +776,10 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     findAcceptedUses,
     getUseStatus,
     acceptPresentation,
+    recordRetry,
+    armDropNextAck,
+    isDropNextAckArmed,
+    cancelDropNextAck,
+    consumeDropNextAckAfterSuccess,
   };
 }

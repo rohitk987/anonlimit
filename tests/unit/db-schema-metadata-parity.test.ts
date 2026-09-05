@@ -100,6 +100,9 @@ describe("Drizzle schema metadata", () => {
   it("matches every explicitly named migration constraint and index", async () => {
     const migrationPaths = [
       "packages/db/migrations/verifier/0001-durable-acceptance.sql",
+      "packages/db/migrations/verifier/0002-worker-completion.sql",
+      "packages/db/migrations/verifier/0003-lost-ack-fault.sql",
+      "packages/db/migrations/verifier/0004-fault-target-integrity.sql",
       "packages/db/migrations/action/0001-action-foundation.sql",
     ];
     const schemaPaths = ["packages/db/src/verifier/schema.ts", "packages/db/src/action/schema.ts"];

@@ -67,4 +67,24 @@ describe("foundation health surfaces", () => {
       await app.close();
     }
   });
+  it("does not register demo fault controls when demo mode is disabled", async () => {
+    const app = createApi(apiEnv, () => Promise.resolve(), undefined, {
+      arm: async () => {
+        throw new Error("DEMO_ROUTE_MUST_BE_ABSENT");
+      },
+      consumeAfterDurableResult: async () => false,
+    });
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/demo/faults/drop-next-ack",
+        headers: { "content-type": "application/json" },
+        payload: { operationId: "00000000-0000-4000-8000-000000000001" },
+      });
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({ code: "NOT_FOUND" });
+    } finally {
+      await app.close();
+    }
+  });
 });

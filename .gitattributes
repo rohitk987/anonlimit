@@ -1,4 +1,5 @@
 * text=auto eol=lf
 *.sh text eol=lf
 *.sql text eol=lf
+packages/db/migrations/verifier/0003-lost-ack-fault.sql whitespace=-blank-at-eof
 pnpm-lock.yaml text eol=lf

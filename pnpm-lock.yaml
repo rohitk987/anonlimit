@@ -177,6 +177,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@anonlimit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@anonlimit/domain':
         specifier: workspace:*
         version: link:../domain

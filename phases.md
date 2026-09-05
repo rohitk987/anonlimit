@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–4 complete; G4 passed; Phase 5 is next |
+| Status | Phases 0–5 complete; G5 passed; Phase 6 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -120,8 +120,8 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 | [x] | 1. Repository foundation | 1–2 h | Four apps and shared packages build; PostgreSQL is healthy | Clean install, typecheck, build, migration shell |
 | [x] | 2. Protocol kernel | 2–3 h | Contracts and opaque adapter prove protocol semantics | Unit and opaque-adapter contract suites pass |
 | [x] | 3. Durable acceptance | 3–4 h | One valid proof atomically creates one use and outbox item | Real PostgreSQL commit/rollback tests pass |
-| [ ] | 4. First complete use | 4–5 h | Browser wallet reaches one stable Action Simulator receipt | One-use end-to-end test passes |
-| [ ] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
+| [x] | 4. First complete use | 4–5 h | Browser wallet reaches one stable Action Simulator receipt | One-use end-to-end test passes |
+| [x] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
 | [ ] | 6. Bound and rejection | 2–3 h | Three uses succeed; fourth and conflicts mutate nothing | Headless P0 golden scenario passes |
 | [ ] | 7. Evidence and privacy | 3–4 h | Backend-derived invariant and linkability report passes | Full privacy suite passes |
 | [ ] | 8. Judge experience | 3–5 h | Guided browser demo finishes under three minutes | Playwright P0 golden flow passes |
@@ -635,23 +635,23 @@ Make an uncertain network outcome safe without spending a new slot or duplicatin
 
 ### Tasks
 
-- [ ] Add deterministic one-shot drop-next-ack control.
-- [ ] Drop the response only after use, action, and receipt are durable.
-- [ ] Change the wallet operation to OUTCOME_UNKNOWN.
-- [ ] Retain the same slot and serialized operation.
-- [ ] Retry the stored operation.
-- [ ] Resolve accepted use before rejecting an expired challenge.
-- [ ] Return RETRY_IN_PROGRESS for pending work.
-- [ ] Return RETRY_RESOLVED and the cached receipt for completed work.
-- [ ] Return usageDelta zero and actionDelta zero.
-- [ ] Add distinct event and UI states for:
+- [x] Add deterministic one-shot drop-next-ack control.
+- [x] Drop the response only after use, action, and receipt are durable.
+- [x] Change the wallet operation to OUTCOME_UNKNOWN.
+- [x] Retain the same slot and serialized operation.
+- [x] Retry the stored operation.
+- [x] Resolve accepted use before rejecting an expired challenge.
+- [x] Return RETRY_IN_PROGRESS for pending work.
+- [x] Return RETRY_RESOLVED and the cached receipt for completed work.
+- [x] Return usageDelta zero and actionDelta zero.
+- [x] Add distinct event and UI states for:
   - New acceptance.
   - Acknowledgement dropped.
   - Unknown outcome.
   - Retry matched.
   - Receipt recovered.
-- [ ] Test retry after the original challenge expires.
-- [ ] Test API failure after acceptance commit.
+- [x] Test retry after the original challenge expires.
+- [x] Test API failure after acceptance commit.
 
 ### Key files
 
@@ -660,24 +660,25 @@ apps/api/src/modules/presentations/resolve-existing-use.ts
 apps/api/src/modules/presentations/wait-for-outcome.ts
 apps/api/src/modules/demo/fault-controller.ts
 apps/api/src/modules/demo/demo.routes.ts
+apps/api/src/modules/protocol/protocol-service.ts
 
+apps/web/src/features/wallet/wallet-db.ts
 apps/web/src/features/wallet/wallet-service.ts
-apps/web/src/features/demo-lab/useDemoController.ts
 
 packages/domain/src/retry-classifier.ts
-packages/testing/src/faults/deterministic-faults.ts
+packages/db/src/verifier/repository.ts
 ```
 
 ### Required tests
 
-- Timeout does not advance the wallet slot.
-- Pending exact retry creates no new use or outbox row.
-- Completed exact retry returns the original receipt.
-- Exact retry after challenge expiry still recovers the committed result.
-- API failure after acceptance commit is recoverable.
-- Same nullifier with changed intent is a conflict.
-- Same operation ID with changed content is a conflict.
-- The original use remains immutable after either conflict.
+- [x] Timeout does not advance the wallet slot.
+- [x] Pending exact retry creates no new use or outbox row.
+- [x] Completed exact retry returns the original receipt.
+- [x] Exact retry after challenge expiry still recovers the committed result.
+- [x] API failure after acceptance commit is recoverable.
+- [x] Same nullifier with changed intent is a conflict.
+- [x] Same operation ID with changed content is a conflict.
+- [x] The original use remains immutable after either conflict.
 
 ### Output
 
@@ -692,6 +693,10 @@ recovered receipt       = original receipt
 wallet slot advanced    = false
 new outbox event        = false
 ```
+
+### Completion record
+
+G5 passed on 2026-09-05. A real HTTP socket test armed one operation, completed its use through the independent Action Simulator and worker, and withheld a valid acknowledgement only after `SUCCEEDED`, cached receipt, and delivered outbox state were durable. Reposting the exact serialized envelope after challenge expiry returned the original receipt with zero deltas and no new use, outbox row, action, or receipt. The browser scenario preserved `OUTCOME_UNKNOWN` and the same local slot across refresh, then recovered through an explicit byte-identical retry. See [the Phase 5 record](docs/phase-5-safe-retry.md).
 
 ### Stop condition
 
@@ -1462,7 +1467,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 2. Protocol kernel | G2 | [x] |
 | 3. Durable acceptance | G3 | [x] |
 | 4. First complete use | G4 | [x] |
-| 5. Safe retry | G5 | [ ] |
+| 5. Safe retry | G5 | [x] |
 | 6. Bound and rejection | G6 | [ ] |
 | 7. Evidence and privacy | G7 | [ ] |
 | 8. Judge experience | G8 — P0 lock | [ ] |

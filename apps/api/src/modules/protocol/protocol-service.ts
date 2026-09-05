@@ -92,6 +92,13 @@ export interface ProtocolRepository {
   }>;
   acceptPresentation(input: AcceptanceInput): Promise<AcceptedUse>;
   getUseStatus(useId: string): Promise<UseStatusResponse | null>;
+  recordRetry(input: {
+    readonly eventIds: readonly string[];
+    readonly traceId: string;
+    readonly useId: string;
+    readonly maskedUseRef: string;
+    readonly result: UseResult;
+  }): Promise<void>;
 }
 
 export interface IssuerPort {
@@ -346,13 +353,22 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
     return run;
   }
 
-  async function findPriorUse(input: {
-    readonly demoRunId: string;
-    readonly scopeHash: string;
-    readonly nullifierKey: string;
-    readonly operationId: string;
-    readonly intentDigest: string;
-  }): Promise<ProtocolResponse<UseResult> | null> {
+  async function maskedUseReference(useId: string): Promise<string> {
+    const maskedDigest = await sha256Hex(useId);
+    if (!/^[a-f0-9]{64}$/u.test(maskedDigest)) throw new Error("HASH_INVALID");
+    return `use_${maskedDigest.slice(0, 12)}`;
+  }
+
+  async function findPriorUse(
+    input: {
+      readonly demoRunId: string;
+      readonly scopeHash: string;
+      readonly nullifierKey: string;
+      readonly operationId: string;
+      readonly intentDigest: string;
+    },
+    traceId: string
+  ): Promise<ProtocolResponse<UseResult> | null> {
     const existing = await repository.findAcceptedUses(input);
     let decision: ReturnType<typeof classifyRetry>;
     try {
@@ -360,7 +376,18 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
     } catch (error) {
       mapDomainError(error);
     }
-    return decision.kind === "NEW" ? null : retryResponse(decision);
+    if (decision.kind === "NEW") return null;
+    const response = retryResponse(decision);
+    await repository.recordRetry({
+      eventIds: Array.from({ length: response.body.status === "SUCCEEDED" ? 3 : 2 }, () =>
+        checkedUuid(randomUuid)
+      ),
+      traceId,
+      useId: response.body.useId,
+      maskedUseRef: await maskedUseReference(response.body.useId),
+      result: response.body,
+    });
+    return response;
   }
 
   const service: ProtocolService = {
@@ -476,14 +503,14 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       } as const;
 
       // A committed historical decision wins even when its original policy/challenge is now stale.
-      const prior = await findPriorUse(identity);
+      const prior = await findPriorUse(identity, traceId);
       if (prior) return prior;
 
       const currentTime = checkedNow(now);
       try {
         assertBoundAndFreshPolicy(policy, presentation, currentTime);
       } catch (error) {
-        const winner = await findPriorUse(identity);
+        const winner = await findPriorUse(identity, traceId);
         if (winner) return winner;
         throw error;
       }
@@ -502,7 +529,7 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       )
         fail("PRESENTATION_REJECTED");
       if (storedChallenge.state === "CONSUMED") {
-        const winner = await findPriorUse(identity);
+        const winner = await findPriorUse(identity, traceId);
         if (winner) return winner;
         throw new Error("LEDGER_INCONSISTENT");
       }
@@ -533,7 +560,7 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
           currentTime
         );
       } catch (error) {
-        const winner = await findPriorUse(identity);
+        const winner = await findPriorUse(identity, traceId);
         if (winner) return winner;
         mapDomainError(error);
       }
@@ -562,13 +589,11 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       const useId = checkedUuid(randomUuid);
       const outboxEventId = checkedUuid(randomUuid);
       const protocolEventId = checkedUuid(randomUuid);
-      const [actionKey, payloadDigest, maskedDigest] = await Promise.all([
+      const [actionKey, payloadDigest, maskedUseRef] = await Promise.all([
         lookupProtection.deriveActionKey({ useId, intentDigest }),
         digest(canonicalAction(presentation.action), sha256Hex),
-        sha256Hex(useId),
+        maskedUseReference(useId),
       ]);
-      if (!/^[a-f0-9]{64}$/u.test(maskedDigest)) throw new Error("HASH_INVALID");
-      const maskedUseRef = `use_${maskedDigest.slice(0, 12)}`;
       let acceptanceFailed = false;
       let acceptanceError: unknown;
       try {
@@ -594,7 +619,7 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
 
       const outcome = acceptanceFailure(acceptanceError);
       if (outcome?.kind === "RACE_LOST") {
-        const winner = await findPriorUse(identity);
+        const winner = await findPriorUse(identity, traceId);
         if (winner) return winner;
         throw new Error("LEDGER_INCONSISTENT");
       }

@@ -8,6 +8,7 @@ import {
 } from "@anonlimit/crypto/verifier";
 import { createVerifierDatabase } from "@anonlimit/db/verifier";
 import { createApp } from "./app.js";
+import { createLostAckFaultController } from "./modules/demo/fault-controller.js";
 import { createProtocolService } from "./modules/protocol/index.js";
 
 interface PublicParameters {
@@ -64,7 +65,8 @@ async function main(): Promise<void> {
     lookupProtection,
     sha256Hex,
   });
-  const app = createApp(config, database.check, protocol);
+  const faultController = createLostAckFaultController(database);
+  const app = createApp(config, database.check, protocol, faultController);
   app.addHook("onClose", () => database.close());
   const stop = () => {
     void app.close().catch(() => {

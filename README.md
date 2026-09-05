@@ -2,9 +2,9 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phases 0–4 are implemented, and G4 has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can now be issued, presented, accepted durably, delivered through the leased worker to the private Action Simulator, and recovered as one stable receipt after refresh. The three-use bound, lost-ack retry, and live evidence remain later phases.
+**Phases 0–5 are implemented, and G5 has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The demo can then drop a targeted acknowledgement after the receipt is durable and recover that receipt by retrying the exact IndexedDB request with zero extra use or action. The full three-use bound and live evidence remain later phases.
 
-Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
+Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
 ## Start locally
 
@@ -36,27 +36,27 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the Phase 4 slice
+## Verify the Phase 5 slice
 
 ```powershell
-pnpm check:phase4
+pnpm check:phase5
 pnpm test:integration
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm check:phase4` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, isolated PostgreSQL acceptance tests, Action Simulator idempotency, worker lease/completion, and privacy checks. The full integration suite adds live Compose role checks, while Playwright covers issuance, one complete use, receipt delivery, and refresh recovery.
+`pnpm check:phase5` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, isolated PostgreSQL acceptance tests, Action Simulator idempotency, worker lease/completion, real-socket lost-ack recovery, and privacy checks. The full integration suite adds live Compose role checks, while Playwright covers a normal use, a durable lost acknowledgement, unknown state across refresh, byte-identical request replay, and original receipt recovery.
 
 A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the cumulative gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase4`, and `pnpm test:privacy`. G4 certifies one complete use; the three-use bound, lost-ack retry, evidence, and release invariants remain later phases.
+Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase5`, and `pnpm test:privacy`. G5 certifies exact retry safety; the three-use bound, evidence, and release invariants remain later phases.
 
 ## Workspace
 
 | Location                 | Responsibility                                                                         |
 | ------------------------ | -------------------------------------------------------------------------------------- |
 | `apps/web`               | React/Vite holder wallet with IndexedDB state and real protocol flow                   |
-| `apps/api`               | Fastify health endpoints plus issuance, challenge, presentation, and use-status routes |
+| `apps/api`               | Fastify health, issuance, challenge, presentation, use-status, and demo-fault routes   |
 | `apps/worker`            | Private leased outbox delivery and atomic receipt completion                           |
 | `apps/action-simulator`  | Private Fastify idempotent action and sanitized evidence endpoints                     |
 | `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists                      |

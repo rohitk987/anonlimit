@@ -4,10 +4,13 @@ import { parseClientEnv } from "@anonlimit/config/client";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
 import { createApiClient } from "./lib/api-client.js";
 import {
+  armNextWalletDropAck,
   issueWalletCredential,
   loadWallet,
   performWalletUse,
+  retryLastWalletUse,
   resumePendingWalletUse,
+  WalletOutcomeUnknownError,
   type WalletSnapshot,
 } from "./features/wallet/wallet-service.js";
 import "./style.css";
@@ -23,31 +26,47 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    void (async () => {
-      try {
-        const [wallet, response] = await Promise.all([
-          loadWallet(),
-          fetch(config.apiBaseUrl + "/health/ready", { credentials: "omit" }),
-        ]);
-        const health = healthResponseSchema.parse(await response.json());
-        if (!response.ok || health.status !== "ok") throw new Error("API_UNAVAILABLE");
+    void loadWallet()
+      .then(async (wallet) => {
         if (!active) return;
-        setConnection("API and database connected");
         setSnapshot(wallet);
-        if (wallet.operation?.state === "PENDING") {
+        if (wallet.operation?.state === "OUTCOME_UNKNOWN") {
+          setMessage(
+            wallet.operation.dropAckArmed
+              ? "Acknowledgement dropped. Retry the exact stored request safely."
+              : "The response was lost. Retry the exact stored request safely."
+          );
+        } else if (wallet.operation?.state === "PENDING" && wallet.operation.useId) {
           setMessage("Recovered a pending operation. Completing it…");
           const resumed = await resumePendingWalletUse(client);
           if (active) {
             setSnapshot(resumed);
             setMessage(
-              resumed.operation?.state === "SUCCEEDED" ? "Receipt recovered." : "Operation pending."
+              resumed.operation?.state === "SUCCEEDED"
+                ? "Pending action completed."
+                : resumed.operation?.state === "FAILED"
+                  ? "The accepted action failed finally; its slot is retired."
+                  : resumed.operation?.state === "OUTCOME_UNKNOWN"
+                    ? "The delayed result is unknown. Retry the exact stored request safely."
+                    : "Operation pending."
             );
           }
+        } else if (wallet.operation?.state === "PENDING") {
+          setMessage("A stored operation needs an exact retry.");
         }
-      } catch {
+      })
+      .catch(() => {
+        if (active) setMessage("Browser wallet unavailable.");
+      });
+    void fetch(config.apiBaseUrl + "/health/ready", { credentials: "omit" })
+      .then(async (response) => {
+        const health = healthResponseSchema.parse(await response.json());
+        if (!response.ok || health.status !== "ok") throw new Error("API_UNAVAILABLE");
+        if (active) setConnection("API and database connected");
+      })
+      .catch(() => {
         if (active) setConnection("API unavailable — check local services");
-      }
-    })();
+      });
     return () => {
       active = false;
     };
@@ -67,6 +86,20 @@ function App() {
     }
   }
 
+  async function armDropAck() {
+    setBusy(true);
+    setMessage("Arming one acknowledgement drop…");
+    try {
+      const next = await armNextWalletDropAck(client);
+      setSnapshot(next);
+      setMessage("Fault armed for the next stored operation.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Fault control failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function useNext() {
     setBusy(true);
     setMessage("Creating a private presentation…");
@@ -79,7 +112,52 @@ function App() {
           : "Use accepted; waiting for receipt…"
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Use failed.");
+      const retained = await loadWallet();
+      setSnapshot(retained);
+      setMessage(
+        error instanceof WalletOutcomeUnknownError
+          ? retained.operation?.dropAckArmed
+            ? "Acknowledgement dropped. Outcome unknown; the same request is safe to retry."
+            : "Response lost. Outcome unknown; the same request is safe to retry."
+          : error instanceof Error
+            ? error.message
+            : "Use failed."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryLast() {
+    setBusy(true);
+    setMessage("Retrying the exact stored request…");
+    try {
+      const next = await retryLastWalletUse(client, (progress) => {
+        setSnapshot(progress);
+        setMessage(
+          progress.operation?.retryResult?.code === "RETRY_IN_PROGRESS"
+            ? "Retry matched the accepted use; its action is still pending."
+            : "The stored request reached the verifier; its action is pending."
+        );
+      });
+      setSnapshot(next);
+      setMessage(
+        next.operation?.state === "SUCCEEDED"
+          ? next.operation.retryResult?.replayed
+            ? "Retry matched. Original receipt recovered with zero extra use or action."
+            : "The stored request was accepted once and its receipt was recovered."
+          : next.operation?.state === "FAILED"
+            ? "The accepted use reached a final action failure; its slot is retired."
+            : "Retry matched the pending use."
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof WalletOutcomeUnknownError
+          ? "Acknowledgement is still uncertain. The stored request remains safe to retry."
+          : error instanceof Error
+            ? error.message
+            : "Retry failed."
+      );
       setSnapshot(await loadWallet());
     } finally {
       setBusy(false);
@@ -90,6 +168,28 @@ function App() {
   const operation = snapshot.operation;
   const remaining = credential ? credential.policy.maxUses - credential.nextSlot : 0;
   const receipt = operation?.result?.status === "SUCCEEDED" ? operation.result.receipt : null;
+  const unresolved = operation?.state === "PENDING" || operation?.state === "OUTCOME_UNKNOWN";
+  const faultArmed = Boolean(credential?.preparedOperationId);
+  const protocolState =
+    operation?.state === "OUTCOME_UNKNOWN"
+      ? operation.dropAckArmed
+        ? "ACKNOWLEDGEMENT DROPPED · OUTCOME UNKNOWN"
+        : "RESPONSE LOST · OUTCOME UNKNOWN"
+      : operation?.retryResult?.replayed && operation.state === "SUCCEEDED"
+        ? "RETRY MATCHED · RECEIPT RECOVERED"
+        : operation?.retryResult && operation.state === "SUCCEEDED"
+          ? "STORED REQUEST ACCEPTED · RECEIPT STORED"
+          : operation?.state === "FAILED" && operation.result?.status === "FAILED_FINAL"
+            ? "ACTION FAILED · SLOT RETIRED"
+            : operation?.state === "FAILED"
+              ? "REQUEST REJECTED · SLOT RETAINED"
+              : faultArmed
+                ? "FAULT ARMED · NEXT ACKNOWLEDGEMENT"
+                : operation?.state === "PENDING"
+                  ? "NEW ACCEPTANCE · PENDING"
+                  : operation?.state === "SUCCEEDED"
+                    ? "NEW ACCEPTANCE · RECEIPT STORED"
+                    : "READY";
 
   return (
     <main>
@@ -110,34 +210,53 @@ function App() {
           <span>One stable receipt.</span>
         </h1>
         <p className="description">
-          A browser wallet holds the pass. The verifier accepts one use durably, then a worker
-          commits the external action.
+          Lose a network response after a durable action, then recover the same receipt without
+          spending another anonymous use.
         </p>
       </section>
       <section className="wallet" aria-labelledby="wallet-title">
         <div className="wallet-heading">
           <div>
-            <p className="eyebrow">PHASE 04 / HOLDER WALLET</p>
-            <h2 id="wallet-title">Complete one anonymous use</h2>
+            <p className="eyebrow">PHASE 05 / SAFE RETRY</p>
+            <h2 id="wallet-title">Recover a lost acknowledgement</h2>
           </div>
           <span className="connection" role="status" aria-live="polite">
             {connection}
           </span>
         </div>
         <p className="wallet-copy">
-          The pass and pending operation stay in IndexedDB on this browser. The server receives a
-          presentation, never a browser identity.
+          The wallet stores the exact serialized request before sending it. An unknown outcome keeps
+          the same slot reserved until that request is retried.
+        </p>
+        <p className="protocol-state" aria-live="polite">
+          {protocolState}
         </p>
         <div className="actions">
-          <button type="button" onClick={() => void issue()} disabled={busy}>
+          <button
+            type="button"
+            onClick={() => void issue()}
+            disabled={busy || Boolean(credential) || unresolved}
+          >
             Issue anonymous pass
           </button>
+          {config.demoMode ? (
+            <button
+              type="button"
+              onClick={() => void armDropAck()}
+              disabled={busy || !credential || remaining === 0 || unresolved || faultArmed}
+            >
+              Drop next acknowledgement
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void useNext()}
-            disabled={busy || !credential || remaining === 0}
+            disabled={busy || !credential || remaining === 0 || unresolved}
           >
             Use next slot
+          </button>
+          <button type="button" onClick={() => void retryLast()} disabled={busy || !unresolved}>
+            Retry last request
           </button>
         </div>
         <div className="wallet-grid">
@@ -180,7 +299,7 @@ function App() {
         </article>
       </section>
       <footer>
-        <span>Phase 4 end-to-end use · {remaining} slots available</span>
+        <span>Phase 5 exact retry · {remaining} slots locally available</span>
         <p>
           Cryptographic guarantees are assumptions of an opaque simulated provider. Production
           anonymity is not implemented.

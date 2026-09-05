@@ -1,11 +1,13 @@
 import {
   challengeResponseSchema,
+  demoFaultResponseSchema,
   issuanceResponseSchema,
   policySchema,
   useResultSchema,
   useStatusResponseSchema,
   type Action,
   type ChallengeResponse,
+  type DemoFaultResponse,
   type IssuanceResponse,
   type Policy,
   type Presentation,
@@ -24,23 +26,55 @@ export interface ApiClient {
     action: Action;
   }): Promise<ChallengeResponse>;
   submitPresentation(presentation: Presentation): Promise<UseResult>;
+  submitSerializedPresentation(serializedEnvelope: string, operationId: string): Promise<UseResult>;
   getUseStatus(useId: string): Promise<UseStatusResponse>;
+  armDropNextAck(operationId: string): Promise<DemoFaultResponse>;
+}
+
+export class ApiTransportError extends Error {
+  constructor() {
+    super("TRANSPORT_UNCERTAIN");
+    this.name = "ApiTransportError";
+  }
+}
+
+export class ApiResponseError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(code: string, status: number) {
+    super(code);
+    this.name = "ApiResponseError";
+    this.code = code;
+    this.status = status;
+  }
 }
 
 export function createApiClient(baseUrl: string): ApiClient {
   async function request(path: string, init?: RequestInit): Promise<unknown> {
-    const response = await fetch(baseUrl + path, {
-      ...init,
-      credentials: "omit",
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
-    const body: unknown = await response.json().catch(() => null);
+    let response: Response;
+    try {
+      response = await fetch(baseUrl + path, {
+        ...init,
+        credentials: "omit",
+        headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      });
+    } catch {
+      throw new ApiTransportError();
+    }
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      if (response.ok) throw new ApiTransportError();
+      body = null;
+    }
     if (!response.ok) {
       const code =
         body && typeof body === "object" && "code" in body && typeof body.code === "string"
           ? body.code
           : "REQUEST_FAILED";
-      throw new Error(code);
+      throw new ApiResponseError(code, response.status);
     }
     return body;
   }
@@ -79,8 +113,25 @@ export function createApiClient(baseUrl: string): ApiClient {
         })
       );
     },
+    async submitSerializedPresentation(serializedEnvelope, operationId) {
+      return useResultSchema.parse(
+        await request("/v1/verifier/presentations", {
+          method: "POST",
+          headers: { "Idempotency-Key": operationId },
+          body: serializedEnvelope,
+        })
+      );
+    },
     async getUseStatus(useId) {
       return useStatusResponseSchema.parse(await request(`/v1/verifier/uses/${useId}`));
+    },
+    async armDropNextAck(operationId) {
+      return demoFaultResponseSchema.parse(
+        await request("/v1/demo/faults/drop-next-ack", {
+          method: "POST",
+          body: JSON.stringify({ operationId }),
+        })
+      );
     },
   };
 }
