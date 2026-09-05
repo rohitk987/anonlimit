@@ -3,9 +3,26 @@ import Fastify, { LogController, type FastifyBaseLogger, type FastifyInstance } 
 import cors from "@fastify/cors";
 import { type ApiEnv } from "@anonlimit/config/server";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
-import { createSafeLogger } from "@anonlimit/observability";
+import { createSafeLogger, serializePublicError } from "@anonlimit/observability";
+import {
+  ProtocolPublicError,
+  registerProtocolRoutes,
+  type ProtocolService,
+} from "./modules/protocol/index.js";
 
-export function createApp(config: ApiEnv, checkDatabase: () => Promise<void>): FastifyInstance {
+function ownCode(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const descriptor = Object.getOwnPropertyDescriptor(value, "code");
+  return descriptor && "value" in descriptor && typeof descriptor.value === "string"
+    ? descriptor.value
+    : null;
+}
+
+export function createApp(
+  config: ApiEnv,
+  checkDatabase: () => Promise<void>,
+  protocolService?: ProtocolService
+): FastifyInstance {
   const logger: FastifyBaseLogger = createSafeLogger(config.logLevel);
   const app = Fastify({
     loggerInstance: logger,
@@ -14,7 +31,12 @@ export function createApp(config: ApiEnv, checkDatabase: () => Promise<void>): F
     requestIdHeader: false,
     genReqId: () => randomUUID(),
   });
-  void app.register(cors, { origin: config.webOrigin, methods: ["GET"], credentials: false });
+  void app.register(cors, {
+    origin: config.webOrigin,
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Idempotency-Key"],
+    credentials: false,
+  });
   app.addHook("onResponse", async (request, reply) => {
     app.log.info({
       method: request.method,
@@ -24,7 +46,30 @@ export function createApp(config: ApiEnv, checkDatabase: () => Promise<void>): F
       durationMs: reply.elapsedTime,
     });
   });
-  app.setErrorHandler((_error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
+    const fastifyCode = ownCode(error);
+    if (
+      fastifyCode === "FST_ERR_CTP_BODY_TOO_LARGE" ||
+      fastifyCode === "FST_ERR_CTP_INVALID_MEDIA_TYPE" ||
+      fastifyCode === "FST_ERR_CTP_INVALID_JSON_BODY"
+    )
+      return reply.code(400).send(
+        serializePublicError({
+          code: "BAD_REQUEST",
+          traceId: request.id,
+          usageDelta: 0,
+          actionDelta: 0,
+        })
+      );
+    if (error instanceof ProtocolPublicError)
+      return reply.code(error.statusCode).send(
+        serializePublicError({
+          code: error.code,
+          traceId: request.id,
+          usageDelta: 0,
+          actionDelta: 0,
+        })
+      );
     app.log.error({ errorCode: "INTERNAL_ERROR" });
     return reply.code(500).send({ code: "INTERNAL_ERROR" });
   });
@@ -43,5 +88,6 @@ export function createApp(config: ApiEnv, checkDatabase: () => Promise<void>): F
         .send(healthResponseSchema.parse({ status: "unavailable", service: "api", phase: 1 }));
     }
   });
+  if (protocolService) registerProtocolRoutes(app, protocolService);
   return app;
 }

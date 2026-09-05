@@ -31,7 +31,7 @@ describe("live foundation database", () => {
     expect(sql("SELECT to_regclass('public.schema_migrations') IS NOT NULL")).toBe("t");
   });
 
-  it("isolates service roles, including tables created by future migrations", () => {
+  it("isolates service roles and keeps future worker tables least-privileged", () => {
     expect(
       sql(`
       SELECT
@@ -64,6 +64,6 @@ describe("live foundation database", () => {
         has_table_privilege('action_service', 'verifier.foundation_probe', 'SELECT');
       ROLLBACK;
     `);
-    expect(result.split(/\r?\n/)).toContain("t|t|t|f|f");
+    expect(result.split(/\r?\n/)).toContain("t|f|t|f|f");
   });
 });

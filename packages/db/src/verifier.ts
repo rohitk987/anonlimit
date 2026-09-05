@@ -1,1 +1,2 @@
-export { createConnection as createVerifierDatabase } from "./connection.js";
+export * from "./verifier/repository.js";
+export { createConnection as createVerifierWorkerDatabase } from "./connection.js";

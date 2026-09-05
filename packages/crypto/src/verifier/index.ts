@@ -1,6 +1,6 @@
 import { deriveActionKey, deriveNullifierKey } from "@anonlimit/domain";
 import { hex64Schema } from "@anonlimit/contracts";
-import { hmacSha256Hex } from "../holder/primitives.js";
+import { hmacSha256Hex, sha256Hex } from "../holder/primitives.js";
 import {
   createBindingVerifier,
   type SimulatorOptions,
@@ -36,3 +36,4 @@ export type {
   VerificationInput,
   VerificationResult,
 } from "../simulated-provider/server.js";
+export { sha256Hex };

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–2 complete; G2 passed; Phase 3 is next |
+| Status | Phases 0–3 complete; G3 passed; Phase 4 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -119,7 +119,7 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 | [x] | 0. Kickoff and scope lock | 0.5–1 h | Scope, ownership, and local prerequisites verified | Kickoff evidence and local prerequisites pass |
 | [x] | 1. Repository foundation | 1–2 h | Four apps and shared packages build; PostgreSQL is healthy | Clean install, typecheck, build, migration shell |
 | [x] | 2. Protocol kernel | 2–3 h | Contracts and opaque adapter prove protocol semantics | Unit and opaque-adapter contract suites pass |
-| [ ] | 3. Durable acceptance | 3–4 h | One valid proof atomically creates one use and outbox item | Real PostgreSQL commit/rollback tests pass |
+| [x] | 3. Durable acceptance | 3–4 h | One valid proof atomically creates one use and outbox item | Real PostgreSQL commit/rollback tests pass |
 | [ ] | 4. First complete use | 4–5 h | Browser wallet reaches one stable Action Simulator receipt | One-use end-to-end test passes |
 | [ ] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
 | [ ] | 6. Bound and rejection | 2–3 h | Three uses succeed; fourth and conflicts mutate nothing | Headless P0 golden scenario passes |
@@ -162,7 +162,7 @@ Remove ambiguity before code is created.
 - [x] Agree that P2 will not begin during the hackathon.
 - [x] Create a short task board using the phase IDs in this document.
 
-Recorded decisions, ownership, and command evidence: [Phase 0 kickoff](docs/phase-0-kickoff.md). Node 24, pnpm, Docker engine startup through Windows Explorer, and an actual PostgreSQL 17 SQL check pass. The current team has one implementation owner; additional machines must repeat the checks when added. Application foundation and product gates remain unverified.
+Recorded decisions, ownership, and command evidence: [Phase 0 kickoff](docs/phase-0-kickoff.md). Node 24, pnpm, Docker engine startup through Windows Explorer, and an actual PostgreSQL 17 SQL check passed at kickoff. The current team has one implementation owner; additional machines must repeat the checks when added. Later application and product gates were verified in the subsequent phase records.
 
 ### Decisions that are already closed
 
@@ -415,8 +415,8 @@ Take one real HTTP presentation through validation and proof verification into o
 
 ### Tasks
 
-- [ ] Create PostgreSQL schemas and separate database roles.
-- [ ] Add verifier tables:
+- [x] Create PostgreSQL schemas and separate database roles.
+- [x] Add verifier tables:
   - demo_runs
   - quota_policies
   - verification_challenges
@@ -424,24 +424,24 @@ Take one real HTTP presentation through validation and proof verification into o
   - outbox_events
   - protocol_events
   - demo_faults
-- [ ] Add Action Simulator tables:
+- [x] Add Action Simulator tables:
   - action_results
   - action_faults
-- [ ] Add state check constraints and supporting indexes.
-- [ ] Add required uniqueness constraints.
-- [ ] Implement append-only SQL migrations.
-- [ ] Implement an idempotent default-policy seed.
-- [ ] Implement repository interfaces and Drizzle schemas.
-- [ ] Implement policy and issuance endpoints.
-- [ ] Implement challenge creation.
-- [ ] Implement presentation parsing and public-field allowlisting.
-- [ ] Compute the protected nullifier lookup in request memory.
-- [ ] Resolve existing use or operation conflicts before freshness rejection.
-- [ ] Validate challenge, policy, audience, window, and expiry.
-- [ ] Call the opaque verifier before any usage-state write.
-- [ ] Implement the acceptance transaction.
-- [ ] Catch uniqueness failures by constraint name.
-- [ ] Add a first privacy schema scan.
+- [x] Add state check constraints and supporting indexes.
+- [x] Add required uniqueness constraints.
+- [x] Implement append-only SQL migrations.
+- [x] Implement an idempotent default-policy seed.
+- [x] Implement repository interfaces and Drizzle schemas.
+- [x] Implement policy and issuance endpoints.
+- [x] Implement challenge creation.
+- [x] Implement presentation parsing and public-field allowlisting.
+- [x] Compute the protected nullifier lookup in request memory.
+- [x] Resolve existing use or operation conflicts before freshness rejection.
+- [x] Validate challenge, policy, audience, window, and expiry.
+- [x] Call the opaque verifier before any usage-state write.
+- [x] Implement the acceptance transaction.
+- [x] Catch uniqueness failures by constraint name.
+- [x] Add a first privacy schema scan.
 
 ### Acceptance transaction
 
@@ -515,6 +515,10 @@ A real backend slice ending in ACCEPTED_PENDING_ACTION.
 ### Stop condition
 
 Do not build external processing if an accepted use can exist without an outbox event, or if an invalid proof can mutate usage state.
+
+G3 passed on 2026-09-05. The empty-database bootstrap, migration order/drift checks, schema metadata parity,
+durable acceptance transaction, race and freshness behavior, public error handling, least-privilege worker
+runtime, and privacy checks are recorded in [the Phase 3 record](docs/phase-3-durable-acceptance.md) and [memory.md](memory.md).
 
 ---
 
@@ -1451,8 +1455,8 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 |---|---|---|
 | 0. Kickoff | Scope, ownership, and local prerequisites verified | [x] |
 | 1. Repository foundation | G1 | [x] |
-| 2. Protocol kernel | G2 | [ ] |
-| 3. Durable acceptance | G3 | [ ] |
+| 2. Protocol kernel | G2 | [x] |
+| 3. Durable acceptance | G3 | [x] |
 | 4. First complete use | G4 | [ ] |
 | 5. Safe retry | G5 | [ ] |
 | 6. Bound and rejection | G6 | [ ] |

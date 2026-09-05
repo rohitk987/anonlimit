@@ -13,6 +13,9 @@ const apiEnv = parseApiEnv({
   VERIFIER_LEDGER_HMAC_KEY: "b".repeat(64),
   VERIFIER_ACTION_HMAC_KEY: "c".repeat(64),
   OPAQUE_CRYPTO_PROVIDER: "simulated",
+  ISSUER_KEY_ID: "demo-issuer-v1",
+  ISSUER_PRIVATE_KEY_PATH: "/run/secrets/issuer-simulator.key",
+  ISSUER_PUBLIC_PARAMETERS_PATH: "/run/secrets/issuer-public.json",
 });
 const actionEnv = parseActionEnv({
   ...common,

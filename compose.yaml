@@ -10,6 +10,8 @@ x-runtime: &runtime
   image: anonlimit-foundation:local
   init: true
   networks: [private]
+  volumes:
+    - ./secrets:/run/secrets:ro
 x-logging: &logging
   NODE_ENV: ${NODE_ENV:?Required}
   LOG_LEVEL: ${LOG_LEVEL:?Required}
@@ -21,12 +23,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?Required}
       POSTGRES_USER: ${POSTGRES_USER:?Required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
-      API_DB_PASSWORD: ${API_DB_PASSWORD:?Required}
-      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?Required}
-      ACTION_DB_PASSWORD: ${ACTION_DB_PASSWORD:?Required}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./infra/postgres/00-create-schemas-and-roles.sh:/docker-entrypoint-initdb.d/00-create-schemas-and-roles.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
@@ -38,8 +36,20 @@ services:
     command: ["pnpm", "db:migrate"]
     environment:
       DATABASE_URL_MIGRATION: ${DATABASE_URL_MIGRATION:?Required}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Required}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?Required}
+      ACTION_DB_PASSWORD: ${ACTION_DB_PASSWORD:?Required}
     depends_on:
       postgres: { condition: service_healthy }
+    restart: "no"
+  seed:
+    <<: *runtime
+    command: ["pnpm", "db:seed"]
+    environment:
+      DATABASE_URL_MIGRATION: ${DATABASE_URL_MIGRATION:?Required}
+      ISSUER_KEY_ID: ${ISSUER_KEY_ID:?Required}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
     restart: "no"
   api:
     <<: *runtime
@@ -56,6 +66,9 @@ services:
       VERIFIER_LEDGER_HMAC_KEY: ${VERIFIER_LEDGER_HMAC_KEY:?Required}
       VERIFIER_ACTION_HMAC_KEY: ${VERIFIER_ACTION_HMAC_KEY:?Required}
       OPAQUE_CRYPTO_PROVIDER: ${OPAQUE_CRYPTO_PROVIDER:?Required}
+      ISSUER_KEY_ID: ${ISSUER_KEY_ID:?Required}
+      ISSUER_PRIVATE_KEY_PATH: ${ISSUER_PRIVATE_KEY_PATH:?Required}
+      ISSUER_PUBLIC_PARAMETERS_PATH: ${ISSUER_PUBLIC_PARAMETERS_PATH:?Required}
     ports: ["127.0.0.1:4000:4000"]
     healthcheck:
       test:
@@ -69,7 +82,7 @@ services:
       timeout: 4s
       retries: 12
     depends_on:
-      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
   action-simulator:
     <<: *runtime
     command: ["node", "apps/action-simulator/dist/server.js"]
@@ -90,7 +103,7 @@ services:
       timeout: 4s
       retries: 12
     depends_on:
-      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
   worker:
     <<: *runtime
     command: ["node", "apps/worker/dist/main.js"]
@@ -106,7 +119,7 @@ services:
       timeout: 4s
       retries: 12
     depends_on:
-      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
       action-simulator: { condition: service_healthy }
   web:
     <<: *runtime

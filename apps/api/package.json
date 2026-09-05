@@ -12,7 +12,9 @@
   "dependencies": {
     "@anonlimit/config": "workspace:*",
     "@anonlimit/contracts": "workspace:*",
+    "@anonlimit/crypto": "workspace:*",
     "@anonlimit/db": "workspace:*",
+    "@anonlimit/domain": "workspace:*",
     "@anonlimit/observability": "workspace:*",
     "fastify": "5.12.3",
     "@fastify/cors": "11.3.0"

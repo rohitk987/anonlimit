@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { getWorkerEnv } from "@anonlimit/config/server";
-import { createVerifierDatabase } from "@anonlimit/db/verifier";
+import { createVerifierWorkerDatabase } from "@anonlimit/db/verifier";
 import { createSafeLogger } from "@anonlimit/observability";
 
 async function main(): Promise<void> {
   const config = getWorkerEnv();
   const logger = createSafeLogger(config.logLevel);
-  const database = createVerifierDatabase(config.databaseUrl);
+  const database = createVerifierWorkerDatabase(config.databaseUrl);
   const heartbeat = join(tmpdir(), "anonlimit-worker-ready.json");
   const controller = new AbortController();
   const stop = () => controller.abort();

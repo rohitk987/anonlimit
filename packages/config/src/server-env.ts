@@ -31,6 +31,12 @@ const databaseUrl = z.url().refine((value) => {
     !/replace|placeholder|change.?me/i.test(url.password)
   );
 });
+const identifier = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
+const secretPath = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((value) => value.startsWith("/") && !value.includes("\u0000"));
 const common = {
   NODE_ENV: z.enum(["development", "test", "production"]),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]),
@@ -46,6 +52,9 @@ const apiSchema = z.object({
   VERIFIER_LEDGER_HMAC_KEY: secret,
   VERIFIER_ACTION_HMAC_KEY: secret,
   OPAQUE_CRYPTO_PROVIDER: z.literal("simulated"),
+  ISSUER_KEY_ID: identifier,
+  ISSUER_PRIVATE_KEY_PATH: secretPath,
+  ISSUER_PUBLIC_PARAMETERS_PATH: secretPath,
 });
 const workerSchema = z.object({
   ...common,
@@ -79,6 +88,9 @@ export function parseApiEnv(source: Source) {
     verifierLedgerHmacKey: env.VERIFIER_LEDGER_HMAC_KEY,
     verifierActionHmacKey: env.VERIFIER_ACTION_HMAC_KEY,
     opaqueCryptoProvider: env.OPAQUE_CRYPTO_PROVIDER,
+    issuerKeyId: env.ISSUER_KEY_ID,
+    issuerPrivateKeyPath: env.ISSUER_PRIVATE_KEY_PATH,
+    issuerPublicParametersPath: env.ISSUER_PUBLIC_PARAMETERS_PATH,
   };
 }
 export function parseWorkerEnv(source: Source) {
@@ -111,10 +123,40 @@ export function getWorkerEnv() {
 export function getActionEnv() {
   return parseActionEnv(process.env);
 }
+export function parseMigrationEnv(source: Source) {
+  const env = parse(
+    z.object({
+      DATABASE_URL_MIGRATION: databaseUrl,
+      API_DB_PASSWORD: secret,
+      WORKER_DB_PASSWORD: secret,
+      ACTION_DB_PASSWORD: secret,
+    }),
+    source
+  );
+  return {
+    databaseUrl: env.DATABASE_URL_MIGRATION,
+    rolePasswords: {
+      api: env.API_DB_PASSWORD,
+      worker: env.WORKER_DB_PASSWORD,
+      action: env.ACTION_DB_PASSWORD,
+    },
+  };
+}
 export function getMigrationEnv() {
-  const env = parse(z.object({ DATABASE_URL_MIGRATION: databaseUrl }), process.env);
-  return { databaseUrl: env.DATABASE_URL_MIGRATION };
+  return parseMigrationEnv(process.env);
+}
+export function parseSeedEnv(source: Source) {
+  const env = parse(
+    z.object({ DATABASE_URL_MIGRATION: databaseUrl, ISSUER_KEY_ID: identifier }),
+    source
+  );
+  return { databaseUrl: env.DATABASE_URL_MIGRATION, issuerKeyId: env.ISSUER_KEY_ID };
+}
+export function getSeedEnv() {
+  return parseSeedEnv(process.env);
 }
 export type ApiEnv = ReturnType<typeof parseApiEnv>;
 export type WorkerEnv = ReturnType<typeof parseWorkerEnv>;
 export type ActionEnv = ReturnType<typeof parseActionEnv>;
+export type MigrationEnv = ReturnType<typeof parseMigrationEnv>;
+export type SeedEnv = ReturnType<typeof parseSeedEnv>;

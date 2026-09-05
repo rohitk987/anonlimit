@@ -1,4 +1,4 @@
-name: Protocol
+name: Durable Acceptance
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  protocol:
+  durable-acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -19,11 +19,11 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm setup:env
-      - run: pnpm check:protocol
+      - run: pnpm check:phase3
       - run: docker compose config --quiet
       - run: docker compose build api
       - run: docker compose up -d --no-build --wait --wait-timeout 120
-      - run: pnpm test:integration
+      - run: pnpm test:integration:live
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - name: Stop this job's stack

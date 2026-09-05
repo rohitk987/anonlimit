@@ -18,13 +18,35 @@
       "browser": null,
       "types": "./dist/migrations.d.ts",
       "import": "./dist/migrations.js"
+    },
+    "./seed": {
+      "browser": null,
+      "types": "./dist/seed.d.ts",
+      "import": "./dist/seed.js"
+    },
+    "./transaction": {
+      "browser": null,
+      "types": "./dist/transaction.d.ts",
+      "import": "./dist/transaction.js"
+    },
+    "./verifier/schema": {
+      "browser": null,
+      "types": "./dist/verifier/schema.d.ts",
+      "import": "./dist/verifier/schema.js"
+    },
+    "./action/schema": {
+      "browser": null,
+      "types": "./dist/action/schema.d.ts",
+      "import": "./dist/action/schema.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.schema.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.schema.json --noEmit"
   },
   "dependencies": {
+    "@anonlimit/domain": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "pg": "8.23.0"
   }
 }

@@ -2,9 +2,9 @@
 
 AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
 
-**Phases 0–2 are implemented, and G2 has passed.** The workspace and PostgreSQL runtime run locally. Strict protocol contracts, pure canonical/retry/evidence rules, and the replaceable opaque simulated crypto provider are frozen for the next vertical slice. HTTP issuance, wallet storage, durable use acceptance, worker actions, receipts, and live evidence remain future phases, so the screen still labels them as unavailable.
+**Phases 0–3 are implemented, and G3 has passed.** The workspace and PostgreSQL runtime run locally. The backend now issues simulated anonymous credentials, creates bound challenges, verifies presentations, and atomically records accepted work with a consumed challenge, outbox event, and safe protocol event. Browser wallet storage, worker delivery, external receipts, the three-use bound, and live evidence remain future phases.
 
-Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
+Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
 
 ## Start locally
 
@@ -36,36 +36,36 @@ Stopping the stack preserves its database volume. Bootstrap roles and passwords 
 
 `pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
 
-## Verify the protocol foundation
+## Verify the Phase 3 slice
 
 ```powershell
-pnpm check:protocol
+pnpm check:phase3
 pnpm test:integration
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-The first command runs formatting, lint, type checking, unit and opaque-adapter contract tests, all-app builds, and privacy checks. Integration and browser checks require the running Compose stack. The browser check covers real readiness, retrying the check, unavailable state, recovery, and desktop/mobile layout.
+`pnpm check:phase3` runs formatting, lint, type checking, unit, opaque-adapter contract, all-app builds, isolated PostgreSQL Phase 3 acceptance tests, and privacy checks. The isolated Phase 3 tests start stock PostgreSQL 17 through Testcontainers. The full integration suite adds live Compose role checks, while the browser check covers real readiness, retrying the check, unavailable state, recovery, and desktop/mobile layout.
 
-A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces this protocol gate with a frozen install and empty PostgreSQL. Its hosted execution has not been observed locally.
+A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the Phase 3 gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
 
-Stable commands also include `pnpm check:foundation`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, and `pnpm test:privacy`. G2 freezes protocol behavior but does not certify later durable product invariants.
+Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, and `pnpm test:privacy`. G3 certifies durable acceptance; the browser wallet, external action, bound, evidence, and release invariants remain later phases.
 
 ## Workspace
 
-| Location                 | Responsibility                                                      |
-| ------------------------ | ------------------------------------------------------------------- |
-| `apps/web`               | React/Vite foundation screen with real API readiness                |
-| `apps/api`               | Fastify public health endpoints                                     |
-| `apps/worker`            | Database-aware process heartbeat; no outbox processing yet          |
-| `apps/action-simulator`  | Private Fastify health endpoints                                    |
-| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists   |
-| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules |
-| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters |
-| `packages/db`            | Role-specific connections and append-only migration runner          |
-| `packages/config`        | Separate validated server/client configuration                      |
-| `packages/observability` | Log field allowlist, including child logger bindings                |
-| `packages/testing`       | Test-only helpers prohibited in production imports                  |
+| Location                 | Responsibility                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `apps/web`               | React/Vite foundation screen with real API readiness                                   |
+| `apps/api`               | Fastify health endpoints and issuance, challenge, and presentation routes              |
+| `apps/worker`            | Database-aware process heartbeat; no outbox processing yet                             |
+| `apps/action-simulator`  | Private Fastify health endpoints                                                       |
+| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists                      |
+| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules                    |
+| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters                    |
+| `packages/db`            | Role-specific repositories, durable acceptance, seed, and append-only migration runner |
+| `packages/config`        | Separate validated server/client configuration                                         |
+| `packages/observability` | Log field allowlist, including child logger bindings                                   |
+| `packages/testing`       | Test-only helpers prohibited in production imports                                     |
 
 The local foundation image uses Vite preview and includes build tooling. Release packaging belongs to Phase 10. The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
 

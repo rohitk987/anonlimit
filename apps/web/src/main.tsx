@@ -4,7 +4,7 @@ import { parseClientEnv } from "@anonlimit/config/client";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
 import "./style.css";
 
-function Foundation() {
+function App() {
   const [status, setStatus] = useState("Checking connection");
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
@@ -60,14 +60,14 @@ function Foundation() {
       </section>
       <section className="foundation" aria-labelledby="foundation-title">
         <div className="phase-number" aria-hidden="true">
-          01
+          03
         </div>
         <div className="phase-content">
           <p className="eyebrow">CURRENT BUILD PHASE</p>
-          <h2 id="foundation-title">Repository foundation</h2>
+          <h2 id="foundation-title">Durable acceptance</h2>
           <p>
-            The services are being connected. Credential issuance, redemption, retries, and evidence
-            will become available in later phases.
+            The API can issue an anonymous pass and atomically accept one verified use with durable
+            recovery work. The browser wallet and action receipts arrive in the next phase.
           </p>
           <div className="connection">
             <span role="status" aria-live="polite">
@@ -88,7 +88,7 @@ function Foundation() {
         <article>
           <span className="index">02 / VERIFIER</span>
           <h3>One durable acceptance</h3>
-          <p>PostgreSQL will coordinate each allowed use and its recovery work.</p>
+          <p>PostgreSQL coordinates each accepted use and its recovery work.</p>
         </article>
         <article>
           <span className="index">03 / ACTION</span>
@@ -97,7 +97,7 @@ function Foundation() {
         </article>
       </section>
       <footer>
-        <span>Foundation only · Product workflow unavailable</span>
+        <span>Backend acceptance ready · Browser workflow unavailable</span>
         <p>
           Cryptographic guarantees are assumptions of an opaque simulated provider. Production
           anonymity is not implemented.
@@ -108,4 +108,4 @@ function Foundation() {
 }
 const root = document.getElementById("root");
 if (!root) throw new Error("Application mount unavailable.");
-createRoot(root).render(<Foundation />);
+createRoot(root).render(<App />);

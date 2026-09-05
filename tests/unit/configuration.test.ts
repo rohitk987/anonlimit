@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseApiEnv, parseWorkerEnv, parseActionEnv } from "@anonlimit/config/server";
+import {
+  parseActionEnv,
+  parseApiEnv,
+  parseMigrationEnv,
+  parseSeedEnv,
+  parseWorkerEnv,
+} from "@anonlimit/config/server";
 import { parseClientEnv } from "@anonlimit/config/client";
 
 const valid = {
@@ -10,9 +16,16 @@ const valid = {
   WEB_ORIGIN: "http://localhost:5173",
   DEMO_MODE: "false",
   OPAQUE_CRYPTO_PROVIDER: "simulated",
+  ISSUER_KEY_ID: "demo-issuer-v1",
+  ISSUER_PRIVATE_KEY_PATH: "/run/secrets/issuer-simulator.key",
+  ISSUER_PUBLIC_PARAMETERS_PATH: "/run/secrets/issuer-public.json",
   DATABASE_URL_API: "postgresql://api:unit-test-only@localhost:5432/db",
   DATABASE_URL_WORKER: "postgresql://worker:unit-test-only@localhost:5432/db",
   DATABASE_URL_ACTION: "postgresql://action:unit-test-only@localhost:5432/db",
+  DATABASE_URL_MIGRATION: "postgresql://owner:unit-test-only@localhost:5432/db",
+  API_DB_PASSWORD: "d".repeat(64),
+  WORKER_DB_PASSWORD: "e".repeat(64),
+  ACTION_DB_PASSWORD: "f".repeat(64),
   ACTION_SERVICE_URL: "http://localhost:4100",
   ACTION_SERVICE_TOKEN: "a".repeat(64),
   VERIFIER_LEDGER_HMAC_KEY: "b".repeat(64),
@@ -24,12 +37,35 @@ describe("server configuration fails closed", () => {
     expect(parseApiEnv(valid)).toMatchObject({ demoMode: false, port: 4000, nodeEnv: "test" });
     expect(parseWorkerEnv(valid).outboxPollMs).toBe(1000);
     expect(parseActionEnv(valid).port).toBe(4100);
+    expect(parseMigrationEnv(valid)).toEqual({
+      databaseUrl: valid.DATABASE_URL_MIGRATION,
+      rolePasswords: {
+        api: valid.API_DB_PASSWORD,
+        worker: valid.WORKER_DB_PASSWORD,
+        action: valid.ACTION_DB_PASSWORD,
+      },
+    });
+    expect(parseSeedEnv(valid)).toEqual({
+      databaseUrl: valid.DATABASE_URL_MIGRATION,
+      issuerKeyId: valid.ISSUER_KEY_ID,
+    });
   });
+  it.each(["API_DB_PASSWORD", "WORKER_DB_PASSWORD", "ACTION_DB_PASSWORD"])(
+    "rejects missing migration role secret %s",
+    (name) => {
+      expect(() => parseMigrationEnv({ ...valid, [name]: undefined })).toThrow(
+        "CONFIGURATION_INVALID"
+      );
+    }
+  );
   it.each([
     "DATABASE_URL_API",
     "ACTION_SERVICE_TOKEN",
     "VERIFIER_LEDGER_HMAC_KEY",
     "VERIFIER_ACTION_HMAC_KEY",
+    "ISSUER_KEY_ID",
+    "ISSUER_PRIVATE_KEY_PATH",
+    "ISSUER_PUBLIC_PARAMETERS_PATH",
     "WEB_ORIGIN",
   ])("rejects missing %s", (name) => {
     expect(() => parseApiEnv({ ...valid, [name]: undefined })).toThrow("CONFIGURATION_INVALID");
@@ -51,6 +87,7 @@ describe("server configuration fails closed", () => {
       parseApiEnv({ ...valid, DATABASE_URL_API: "https://api:password@example.com" })
     ).toThrow();
     expect(() => parseWorkerEnv({ ...valid, OUTBOX_POLL_MS: "1" })).toThrow();
+    expect(() => parseApiEnv({ ...valid, ISSUER_PRIVATE_KEY_PATH: "relative.key" })).toThrow();
   });
   it("does not disclose input values in validation errors", () => {
     const marker = "private-input-marker";
