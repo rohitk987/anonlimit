@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–3 complete; G3 passed; Phase 4 is next |
+| Status | Phases 0–4 complete; G4 passed; Phase 5 is next |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -532,34 +532,34 @@ Complete one real use from a browser-held credential to one stable external rece
 
 #### Action Simulator
 
-- [ ] Implement POST /internal/v1/actions.
-- [ ] Enforce unique action_key.
-- [ ] Return the existing receipt for the same key and payload digest.
-- [ ] Reject the same key with a changed digest as an integrity conflict.
-- [ ] Add sanitized internal evidence.
-- [ ] Restrict routes with a service token.
+- [x] Implement POST /internal/v1/actions.
+- [x] Enforce unique action_key.
+- [x] Return the existing receipt for the same key and payload digest.
+- [x] Reject the same key with a changed digest as an integrity conflict.
+- [x] Add sanitized internal evidence.
+- [x] Restrict routes with a service token.
 
 #### Worker
 
-- [ ] Claim outbox work in bounded batches with FOR UPDATE SKIP LOCKED.
-- [ ] Persist the lease and commit before HTTP delivery.
-- [ ] Send only action key, digest, demo run ID, and allowlisted action.
-- [ ] Cache the receipt and mark use/outbox completion atomically.
-- [ ] Append a safe completion event.
-- [ ] Add graceful shutdown.
+- [x] Claim outbox work in bounded batches with FOR UPDATE SKIP LOCKED.
+- [x] Persist the lease and commit before HTTP delivery.
+- [x] Send only action key, digest, demo run ID, and allowlisted action.
+- [x] Cache the receipt and mark use/outbox completion atomically.
+- [x] Append a safe completion event.
+- [x] Add graceful shutdown.
 
 #### Holder Wallet and minimal UI
 
-- [ ] Implement IndexedDB schema.
-- [ ] Persist credential and local slot state.
-- [ ] Persist a pending operation before its first network send.
-- [ ] Implement real issuance.
-- [ ] Request a real verifier challenge.
-- [ ] Create a presentation with the holder adapter.
-- [ ] Submit to the real verifier.
-- [ ] Poll or wait for the real result.
-- [ ] Display only issue, submit, pending state, and receipt.
-- [ ] Connect all processes through Docker Compose.
+- [x] Implement IndexedDB schema.
+- [x] Persist credential and local slot state.
+- [x] Persist a pending operation before its first network send.
+- [x] Implement real issuance.
+- [x] Request a real verifier challenge.
+- [x] Create a presentation with the holder adapter.
+- [x] Submit to the real verifier.
+- [x] Poll or wait for the real result.
+- [x] Display only issue, submit, pending state, and receipt.
+- [x] Connect all processes through Docker Compose.
 
 ### Key files
 
@@ -581,14 +581,14 @@ tests/e2e/golden-demo.spec.ts
 
 ### Required tests
 
-- Wallet persists credential, slot, operation, intent, nullifier, and envelope before send.
-- One delivery creates one Action Simulator result.
-- Repeated delivery with same key and digest returns the same receipt.
-- Same key with changed digest is an integrity error.
-- Use and outbox completion update together.
-- Browser refresh preserves wallet and pending-operation state.
-- Minimal Playwright smoke test performs reset, issuance, one use, and one receipt.
-- First vertical slice passes the database, log, and browser-bundle privacy checks.
+- [x] Wallet persists credential, slot, operation, intent, nullifier, and envelope before send.
+- [x] One delivery creates one Action Simulator result.
+- [x] Repeated delivery with same key and digest returns the same receipt.
+- [x] Same key with changed digest is an integrity error.
+- [x] Use and outbox completion update together.
+- [x] Browser refresh preserves wallet and pending-operation state.
+- [x] Minimal Playwright smoke test performs issuance, one use, and one receipt.
+- [x] First vertical slice passes the database, log, and browser-bundle privacy checks.
 
 ### Output
 
@@ -616,6 +616,10 @@ distinct receipts    = 1
 ```
 
 No mock server, hard-coded receipt, frontend count, or direct API write into action tables may be involved.
+
+### Completion record
+
+G4 passed on 2026-09-05 through Docker Compose after a clean bounded demo reset. PostgreSQL reported one accepted use and one outbox event; the Action Simulator reported one external action and one distinct receipt. The Playwright golden scenario issued a browser-held credential, completed one use, and recovered the same receipt after refresh. Focused integration coverage passed the action idempotency/conflict and worker lease/completion paths.
 
 ### Stop condition
 
@@ -1457,7 +1461,7 @@ Target 2 minutes 15 seconds, leaving recovery time inside the three-minute limit
 | 1. Repository foundation | G1 | [x] |
 | 2. Protocol kernel | G2 | [x] |
 | 3. Durable acceptance | G3 | [x] |
-| 4. First complete use | G4 | [ ] |
+| 4. First complete use | G4 | [x] |
 | 5. Safe retry | G5 | [ ] |
 | 6. Bound and rejection | G6 | [ ] |
 | 7. Evidence and privacy | G7 | [ ] |

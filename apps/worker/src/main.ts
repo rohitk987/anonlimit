@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { getWorkerEnv } from "@anonlimit/config/server";
 import { createVerifierWorkerDatabase } from "@anonlimit/db/verifier";
 import { createSafeLogger } from "@anonlimit/observability";
+import { deliverAction } from "./action-client.js";
 
 async function main(): Promise<void> {
   const config = getWorkerEnv();
@@ -19,11 +20,29 @@ async function main(): Promise<void> {
     while (!controller.signal.aborted) {
       try {
         await database.check();
+        const batch = await database.claimOutboxBatch(10, 30_000);
+        for (const event of batch) {
+          if (controller.signal.aborted) break;
+          const delivery = await deliverAction(config, event, controller.signal);
+          if (delivery.kind === "SUCCESS") {
+            await database.completeOutboxSuccess(event.eventId, delivery.response);
+          } else if (delivery.kind === "INTEGRITY") {
+            await database.failOutbox(event.eventId, "ACTION_INTEGRITY_CONFLICT");
+          } else {
+            await database.retryOutbox(event.eventId, delivery.code);
+          }
+        }
         await writeFile(heartbeat + ".tmp", JSON.stringify({ checkedAt: Date.now() }));
         await rename(heartbeat + ".tmp", heartbeat);
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted) break;
         await rm(heartbeat, { force: true });
-        logger.warn({ errorCode: "DATABASE_UNAVAILABLE" });
+        logger.warn({
+          errorCode:
+            error instanceof Error && error.message === "WORKER_ABORTED"
+              ? "WORKER_ABORTED"
+              : "WORKER_LOOP_FAILED",
+        });
       }
       try {
         await delay(config.outboxPollMs, undefined, { signal: controller.signal });

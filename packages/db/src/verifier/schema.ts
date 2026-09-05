@@ -230,6 +230,8 @@ export const outboxEvents = verifierSchema.table(
     actionKey: varchar("action_key", { length: 76 }).notNull(),
     payloadDigest: varchar("payload_digest", { length: 71 }).notNull(),
     safePayload: jsonb("safe_payload").$type<SafeOutboxPayload>().notNull(),
+    policyId: varchar("policy_id", { length: 128 }),
+    policyVersion: integer("policy_version"),
     state: text("state").default("READY").notNull(),
     attemptCount: integer("attempt_count").default(0).notNull(),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "string" })

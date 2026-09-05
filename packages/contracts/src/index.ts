@@ -2,6 +2,7 @@ export { healthResponseSchema, type HealthResponse } from "./health.js";
 export * from "./primitives.js";
 export * from "./policy.contract.js";
 export * from "./operation.contract.js";
+export * from "./internal-action.js";
 export * from "./issuance.contract.js";
 export * from "./challenge.contract.js";
 export * from "./presentation.contract.js";

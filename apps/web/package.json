@@ -12,6 +12,8 @@
   "dependencies": {
     "@anonlimit/config": "workspace:*",
     "@anonlimit/contracts": "workspace:*",
+    "@anonlimit/crypto": "workspace:*",
+    "@anonlimit/domain": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

@@ -1,41 +1,96 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { parseClientEnv } from "@anonlimit/config/client";
 import { healthResponseSchema } from "@anonlimit/contracts/health";
+import { createApiClient } from "./lib/api-client.js";
+import {
+  issueWalletCredential,
+  loadWallet,
+  performWalletUse,
+  resumePendingWalletUse,
+  type WalletSnapshot,
+} from "./features/wallet/wallet-service.js";
 import "./style.css";
 
+const config = parseClientEnv(import.meta.env);
+
 function App() {
-  const [status, setStatus] = useState("Checking connection");
-  const [refresh, setRefresh] = useState(0);
+  const client = useMemo(() => createApiClient(config.apiBaseUrl), []);
+  const [snapshot, setSnapshot] = useState<WalletSnapshot>({ credential: null, operation: null });
+  const [connection, setConnection] = useState("Checking connection");
+  const [message, setMessage] = useState("Issue a pass to begin.");
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 6000);
     let active = true;
-    setStatus("Checking connection");
-    async function check() {
+    void (async () => {
       try {
-        const config = parseClientEnv(import.meta.env);
-        const response = await fetch(config.apiBaseUrl + "/health/ready", {
-          signal: controller.signal,
-          credentials: "omit",
-        });
+        const [wallet, response] = await Promise.all([
+          loadWallet(),
+          fetch(config.apiBaseUrl + "/health/ready", { credentials: "omit" }),
+        ]);
         const health = healthResponseSchema.parse(await response.json());
-        if (!response.ok || health.status !== "ok" || health.service !== "api")
-          throw new Error("Unavailable");
-        if (active) setStatus("API and database connected");
+        if (!response.ok || health.status !== "ok") throw new Error("API_UNAVAILABLE");
+        if (!active) return;
+        setConnection("API and database connected");
+        setSnapshot(wallet);
+        if (wallet.operation?.state === "PENDING") {
+          setMessage("Recovered a pending operation. Completing it…");
+          const resumed = await resumePendingWalletUse(client);
+          if (active) {
+            setSnapshot(resumed);
+            setMessage(
+              resumed.operation?.state === "SUCCEEDED" ? "Receipt recovered." : "Operation pending."
+            );
+          }
+        }
       } catch {
-        if (active) setStatus("API unavailable — check local services");
-      } finally {
-        window.clearTimeout(timeout);
+        if (active) setConnection("API unavailable — check local services");
       }
-    }
-    void check();
+    })();
     return () => {
       active = false;
-      controller.abort();
-      window.clearTimeout(timeout);
     };
-  }, [refresh]);
+  }, [client]);
+
+  async function issue() {
+    setBusy(true);
+    setMessage("Requesting an anonymous pass…");
+    try {
+      const next = await issueWalletCredential(client);
+      setSnapshot(next);
+      setMessage("Pass ready in this browser wallet.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Issuance failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useNext() {
+    setBusy(true);
+    setMessage("Creating a private presentation…");
+    try {
+      const next = await performWalletUse(client);
+      setSnapshot(next);
+      setMessage(
+        next.operation?.state === "SUCCEEDED"
+          ? "External action committed."
+          : "Use accepted; waiting for receipt…"
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Use failed.");
+      setSnapshot(await loadWallet());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const credential = snapshot.credential;
+  const operation = snapshot.operation;
+  const remaining = credential ? credential.policy.maxUses - credential.nextSlot : 0;
+  const receipt = operation?.result?.status === "SUCCEEDED" ? operation.result.receipt : null;
+
   return (
     <main>
       <header>
@@ -52,52 +107,80 @@ function App() {
         <h1>
           Three uses.
           <br />
-          <span>No identity counter.</span>
+          <span>One stable receipt.</span>
         </h1>
         <p className="description">
-          A simulation of limited anonymous credentials, durable actions, and safe retries.
+          A browser wallet holds the pass. The verifier accepts one use durably, then a worker
+          commits the external action.
         </p>
       </section>
-      <section className="foundation" aria-labelledby="foundation-title">
-        <div className="phase-number" aria-hidden="true">
-          03
-        </div>
-        <div className="phase-content">
-          <p className="eyebrow">CURRENT BUILD PHASE</p>
-          <h2 id="foundation-title">Durable acceptance</h2>
-          <p>
-            The API can issue an anonymous pass and atomically accept one verified use with durable
-            recovery work. The browser wallet and action receipts arrive in the next phase.
-          </p>
-          <div className="connection">
-            <span role="status" aria-live="polite">
-              {status}
-            </span>
-            <button type="button" onClick={() => setRefresh((value) => value + 1)}>
-              Check connection <span aria-hidden="true">↻</span>
-            </button>
+      <section className="wallet" aria-labelledby="wallet-title">
+        <div className="wallet-heading">
+          <div>
+            <p className="eyebrow">PHASE 04 / HOLDER WALLET</p>
+            <h2 id="wallet-title">Complete one anonymous use</h2>
           </div>
+          <span className="connection" role="status" aria-live="polite">
+            {connection}
+          </span>
+        </div>
+        <p className="wallet-copy">
+          The pass and pending operation stay in IndexedDB on this browser. The server receives a
+          presentation, never a browser identity.
+        </p>
+        <div className="actions">
+          <button type="button" onClick={() => void issue()} disabled={busy}>
+            Issue anonymous pass
+          </button>
+          <button
+            type="button"
+            onClick={() => void useNext()}
+            disabled={busy || !credential || remaining === 0}
+          >
+            Use next slot
+          </button>
+        </div>
+        <div className="wallet-grid">
+          <article>
+            <span className="index">WALLET</span>
+            <strong>{credential ? "Credential ready" : "No credential"}</strong>
+            <p>
+              {credential
+                ? `${remaining} of ${credential.policy.maxUses} uses available`
+                : "Issue a pass to create local slots."}
+            </p>
+          </article>
+          <article>
+            <span className="index">OPERATION</span>
+            <strong>{operation?.state ?? "IDLE"}</strong>
+            <p>{message}</p>
+          </article>
+          <article>
+            <span className="index">RECEIPT</span>
+            <strong>{receipt ? "COMMITTED" : "Awaiting action"}</strong>
+            <p>{receipt ? receipt.receiptId : "The worker will return a stable receipt here."}</p>
+          </article>
         </div>
       </section>
-      <section className="principles" aria-label="Planned system boundaries">
+      <section className="principles" aria-label="Protocol boundaries">
         <article>
           <span className="index">01 / HOLDER</span>
-          <h3>Your wallet stays local</h3>
-          <p>Credentials and pending operations will live in the browser wallet.</p>
+          <h3>Local wallet</h3>
+          <p>Credential, slots, and pending envelope persist in IndexedDB.</p>
         </article>
         <article>
           <span className="index">02 / VERIFIER</span>
-          <h3>One durable acceptance</h3>
-          <p>PostgreSQL coordinates each accepted use and its recovery work.</p>
+          <h3>Durable acceptance</h3>
+          <p>PostgreSQL records one accepted use and one outbox event.</p>
         </article>
         <article>
           <span className="index">03 / ACTION</span>
-          <h3>The same receipt on retry</h3>
-          <p>An independent action service will deduplicate repeated deliveries.</p>
+          <h3>Idempotent destination</h3>
+          <p>The same action key returns the same receipt on retry.</p>
         </article>
       </section>
       <footer>
-        <span>Backend acceptance ready · Browser workflow unavailable</span>
+        <span>Phase 4 end-to-end use · {remaining} slots available</span>
         <p>
           Cryptographic guarantees are assumptions of an opaque simulated provider. Production
           anonymity is not implemented.
@@ -106,6 +189,7 @@ function App() {
     </main>
   );
 }
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Application mount unavailable.");
 createRoot(root).render(<App />);

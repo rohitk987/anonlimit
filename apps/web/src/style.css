@@ -81,6 +81,61 @@ h1 span {
   display: flex;
   gap: 26px;
 }
+.wallet {
+  border: 1px solid #3a5362;
+  border-radius: 16px;
+  background: #102735;
+  padding: 26px;
+}
+.wallet-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.wallet-heading .connection {
+  color: #d6eadc;
+  border: 1px solid #3a5362;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.wallet-copy {
+  color: #b9c8d0;
+  max-width: 680px;
+  font-size: 14px;
+  margin: 12px 0 20px;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 20px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.wallet-grid article {
+  border-top: 1px solid #3a5362;
+  padding-top: 14px;
+}
+.wallet-grid strong {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+.wallet-grid p {
+  color: #98b0bf;
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .phase-number {
   font-size: 48px;
   line-height: 1;
@@ -192,6 +247,13 @@ footer p {
   .foundation {
     padding: 20px;
     gap: 16px;
+  }
+  .wallet-heading {
+    flex-direction: column;
+  }
+  .wallet-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
   .phase-number {
     font-size: 35px;

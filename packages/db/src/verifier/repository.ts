@@ -5,6 +5,7 @@ import {
   type Policy,
   type Receipt,
 } from "@anonlimit/domain";
+import { useStatusResponseSchema, type UseStatusResponse } from "@anonlimit/contracts";
 import { createConnectionLifecycle, createPool } from "../connection.js";
 import {
   AcceptancePreconditionError,
@@ -279,6 +280,7 @@ export interface VerifierDatabase {
   insertChallenge(input: NewChallenge): Promise<StoredChallenge>;
   getChallenge(challengeId: string): Promise<StoredChallenge | null>;
   findAcceptedUses(input: AcceptedUseLookup): Promise<ExistingAcceptedUses>;
+  getUseStatus(useId: string): Promise<UseStatusResponse | null>;
   acceptPresentation(input: AcceptanceInput): Promise<AcceptedUse>;
 }
 
@@ -384,6 +386,35 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     return { byNullifier, byOperation };
   };
 
+  const getUseStatus = async (useId: string): Promise<UseStatusResponse | null> => {
+    const result = await pool.query<UseRow>(`${USE_SELECT} WHERE use_id = $1`, [useId]);
+    const row = result.rows[0];
+    if (!row) return null;
+    switch (row.status) {
+      case "ACCEPTED_PENDING_ACTION":
+        return useStatusResponseSchema.parse({ useId: row.use_id, status: row.status });
+      case "SUCCEEDED":
+        return useStatusResponseSchema.parse({
+          useId: row.use_id,
+          status: row.status,
+          receipt: receiptFrom(row.cached_result, row.use_id, row.action_key),
+        });
+      case "FAILED_FINAL":
+        if (
+          row.failure_code !== "ACTION_FAILED_FINAL" &&
+          row.failure_code !== "ACTION_INTEGRITY_CONFLICT"
+        )
+          throw new Error("DATABASE_INCONSISTENT");
+        return useStatusResponseSchema.parse({
+          useId: row.use_id,
+          status: row.status,
+          failureCode: row.failure_code,
+        });
+      default:
+        throw new Error("DATABASE_INCONSISTENT");
+    }
+  };
+
   const acceptPresentation = async (input: AcceptanceInput): Promise<AcceptedUse> => {
     const client = await pool.connect();
     try {
@@ -464,14 +495,16 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
         await client.query(
           `INSERT INTO verifier.outbox_events (
              event_id, use_id, event_type, action_key, payload_digest, safe_payload,
-             state, attempt_count
-           ) VALUES ($1,$2,'COMMIT_DEMO_ACTION',$3,$4,$5::jsonb,'READY',0)`,
+             policy_id, policy_version, state, attempt_count
+           ) VALUES ($1,$2,'COMMIT_DEMO_ACTION',$3,$4,$5::jsonb,$6,$7,'READY',0)`,
           [
             input.outboxEventId,
             input.useId,
             input.actionKey,
             input.payloadDigest,
             JSON.stringify(input.action),
+            input.policy.id,
+            input.policy.version,
           ]
         );
 
@@ -523,6 +556,7 @@ export function createVerifierDatabase(connectionString: string): VerifierDataba
     insertChallenge: createChallenge,
     getChallenge,
     findAcceptedUses,
+    getUseStatus,
     acceptPresentation,
   };
 }

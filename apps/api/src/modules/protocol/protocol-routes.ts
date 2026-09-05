@@ -2,6 +2,7 @@ import {
   challengeRequestSchema,
   idempotencyHeaderSchema,
   issuanceRequestSchema,
+  operationPathSchema,
   policyPathSchema,
   presentationSchema,
   type PublicErrorCode,
@@ -75,6 +76,12 @@ export function registerProtocolRoutes(app: FastifyInstance, service: ProtocolSe
   app.get("/v1/policies/:id/versions/:version", (request, reply) =>
     respond(app, reply, request.id, () =>
       service.getPolicy(parse(policyPathSchema, request.params))
+    )
+  );
+
+  app.get("/v1/verifier/uses/:useId", (request, reply) =>
+    respond(app, reply, request.id, () =>
+      service.getUseStatus(parse(operationPathSchema, request.params).useId)
     )
   );
 

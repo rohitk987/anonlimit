@@ -5,7 +5,7 @@ import { createApp } from "./app.js";
 async function main(): Promise<void> {
   const config = getActionEnv();
   const database = createActionDatabase(config.databaseUrl);
-  const app = createApp(config, database.check);
+  const app = createApp(config, database);
   app.addHook("onClose", () => database.close());
   const stop = () => {
     void app.close().catch(() => {

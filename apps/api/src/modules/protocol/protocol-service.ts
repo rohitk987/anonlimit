@@ -14,6 +14,7 @@ import {
   type Presentation,
   type PublicErrorCode,
   type UseResult,
+  type UseStatusResponse,
 } from "@anonlimit/contracts";
 import {
   DomainError,
@@ -90,6 +91,7 @@ export interface ProtocolRepository {
     readonly byOperation: AcceptedUse | null;
   }>;
   acceptPresentation(input: AcceptanceInput): Promise<AcceptedUse>;
+  getUseStatus(useId: string): Promise<UseStatusResponse | null>;
 }
 
 export interface IssuerPort {
@@ -313,6 +315,7 @@ export interface ProtocolService {
   issueCredential(request: IssuanceRequest): Promise<ProtocolResponse<IssuanceResponse>>;
   createChallenge(request: ChallengeRequest): Promise<ProtocolResponse<ChallengeResponse>>;
   present(presentation: Presentation, traceId: string): Promise<ProtocolResponse<UseResult>>;
+  getUseStatus(useId: string): Promise<ProtocolResponse<UseStatusResponse>>;
 }
 
 export function createProtocolService(dependencies: ProtocolServiceDependencies): ProtocolService {
@@ -365,6 +368,12 @@ export function createProtocolService(dependencies: ProtocolServiceDependencies)
       const policy = await loadPolicy(path.id, Number(path.version));
       if (!policy) fail("NOT_FOUND");
       return { statusCode: 200, body: policy };
+    },
+
+    async getUseStatus(useId) {
+      const status = await repository.getUseStatus(useId);
+      if (!status) fail("NOT_FOUND");
+      return { statusCode: 200, body: status };
     },
 
     async issueCredential(request) {

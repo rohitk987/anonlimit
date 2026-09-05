@@ -25,12 +25,14 @@
     "test:contract": "vitest run --project contract",
     "test:integration": "vitest run --project integration",
     "test:integration:phase3": "vitest run --project integration tests/integration/phase3-database.test.ts tests/integration/presentation-flow.test.ts",
+    "test:integration:phase4": "vitest run --project integration tests/integration/action-idempotency.test.ts tests/integration/phase4-worker.test.ts",
     "test:integration:live": "vitest run --project integration tests/integration/foundation-database.test.ts",
     "test:privacy": "vitest run --project privacy",
     "test:e2e": "playwright test",
     "check:foundation": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:privacy",
     "check:protocol": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:privacy",
-    "check:phase3": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:privacy"
+    "check:phase3": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:privacy",
+    "check:phase4": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:contract && pnpm build && pnpm test:integration:phase3 && pnpm test:integration:phase4 && pnpm test:privacy"
   },
   "devDependencies": {
     "@anonlimit/config": "workspace:*",

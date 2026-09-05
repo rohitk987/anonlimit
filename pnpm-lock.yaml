@@ -116,6 +116,12 @@ importers:
       '@anonlimit/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@anonlimit/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@anonlimit/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       react:
         specifier: 19.2.8
         version: 19.2.8
