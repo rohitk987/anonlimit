@@ -3,7 +3,7 @@
 Last updated: 2026-09-05 (Asia/Calcutta).
 Project root: `D:/myonsite`.
 Current milestone: **Phases 0–4 complete; G4 First complete use passed. Phase 5 is next.**
-Git branch: `codex/phase-2-protocol`. Phase 4 is committed at `b963c9a` (`feat: complete phase 4 first complete use`); check `git status` and `git log -1` for the actual revision.
+Git branch: `codex/phase-2-protocol`. Phase 4 implementation is committed at `adb27e5` (`feat: complete phase 4 first complete use`); this memory update is the follow-up documentation commit. Check `git status` and `git log -1` for the actual revision.
 
 This is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files and runtime checks take precedence over historical observations.
 
