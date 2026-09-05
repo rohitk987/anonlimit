@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phases 0–8 complete; G8 P0 lock passed; Phase 9 is deferred |
+| Status | Phases 0–9 complete; G9 full resilience passed; Phase 10 remains |
 | Target | Judge-ready P0 in 24 hours; P0 plus high-value P1 in 48 hours |
 | Source of requirements | prd.md |
 | Source of architecture | architecture.md |
@@ -124,8 +124,8 @@ Phase 9 is optional for a 24-hour event. Phase 10 is never optional.
 | [x] | 5. Safe retry | 2–3 h | Lost acknowledgement returns the original receipt | Zero retry use/action delta |
 | [x] | 6. Bound and rejection | 2–3 h | Three uses succeed; fourth and conflicts mutate nothing | Headless P0 golden scenario passes |
 | [x] | 7. Evidence and privacy | 3–4 h | Backend-derived invariant and linkability report passes | Evidence, integration, and privacy suites pass |
-| [ ] | 8. Judge experience | 3–5 h | Guided browser demo finishes under three minutes | Playwright P0 golden flow passes |
-| [ ] | 9. P1 resilience | 3–5 h | 20-request race and worker crash recover correctly | Full race/recovery variant passes |
+| [x] | 8. Judge experience | 3–5 h | Guided browser demo finishes under three minutes | Playwright P0 golden flow passes |
+| [x] | 9. P1 resilience | 3–5 h | 20-request race and worker crash recover correctly | Full race/recovery variant passes |
 | [ ] | 10. Release and rehearsal | 2–4 h | Clean checkout, cold start, soak, and demo are stable | Release checklist passes |
 
 The estimates are timeboxes, not permission to skip a failing gate.
@@ -986,26 +986,26 @@ This phase may be omitted only for a minimum P0 submission under a hard 24-hour 
 
 #### Concurrent presentation race
 
-- [ ] Add a synchronization barrier.
-- [ ] Submit 20 identical copies of one fresh valid presentation.
-- [ ] Catch uniqueness conflicts by constraint name.
-- [ ] Roll back losing transactions.
-- [ ] Load the winning use.
-- [ ] Make all successful callers converge on one use and receipt.
-- [ ] Replace the normal third-use step in the full golden scenario with this race.
+- [x] Add a synchronization barrier.
+- [x] Submit 20 identical copies of one fresh valid presentation.
+- [x] Catch uniqueness conflicts by constraint name.
+- [x] Roll back losing transactions.
+- [x] Load the winning use.
+- [x] Make all successful callers converge on one use and receipt.
+- [x] Replace the normal third-use step in the full golden scenario with this race.
 
 #### Worker recovery
 
-- [ ] Test two workers competing for outbox work.
-- [ ] Prove they cannot own the same live lease.
-- [ ] Recover an expired lease.
-- [ ] Inject worker exit before action delivery.
-- [ ] Inject worker exit after external commit but before verifier completion.
-- [ ] Redeliver with the same action key.
-- [ ] Return the Action Simulator's original receipt.
-- [ ] Add bounded exponential backoff.
-- [ ] Add visible DEAD_LETTER state after exhaustion.
-- [ ] Add UI controls only after backend fault tests are deterministic.
+- [x] Test two workers competing for outbox work.
+- [x] Prove they cannot own the same live lease.
+- [x] Recover an expired lease.
+- [x] Inject worker exit before action delivery.
+- [x] Inject worker exit after external commit but before verifier completion.
+- [x] Redeliver with the same action key.
+- [x] Return the Action Simulator's original receipt.
+- [x] Add bounded exponential backoff.
+- [x] Add visible DEAD_LETTER state after exhaustion.
+- [x] Add UI controls only after backend fault tests are deterministic.
 
 ### Key files
 
@@ -1053,13 +1053,16 @@ distinct receipts  = 1
 
 A live race and failure-recovery proof that preserves the P0 invariants.
 
-### Exit gate — G9 Full resilience
+### Exit gate — G9 Full resilience — passed
 
 - Full race variant passes deterministically.
 - Worker fault matrix passes.
 - P0 browser golden scenario remains green.
 - Every race caller converges on the same use and terminal receipt.
 - No fault releases an accepted slot or duplicates an effect.
+
+The deterministic golden race and PostgreSQL worker fault matrix passed. See the [Phase 9 resilience
+record](docs/phase-9-resilience.md). Phase 10 release packaging and rehearsal remain.
 
 ### Rollback rule
 

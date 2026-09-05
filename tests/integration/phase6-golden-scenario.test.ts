@@ -46,6 +46,7 @@ import {
   type GoldenRetryResult,
   type GoldenScenarioDriver,
 } from "../../packages/testing/src/index.js";
+import { createSynchronizationBarrier } from "../../packages/testing/src/synchronization-barrier.js";
 import { startPhase3Postgres, type Phase3Postgres } from "../helpers/phase3-postgres.js";
 import {
   PHASE3_ACTION,
@@ -459,6 +460,92 @@ describe.sequential("Phase 6 reusable headless golden scenario", () => {
         await deliverNextAction();
         return waitForSucceeded(accepted.useId);
       },
+      async submitConcurrentAndComplete(prepared, copies) {
+        if (!database) throw new Error("TEST_DATABASE_UNAVAILABLE");
+        const beforeRace = await database.pool.query<{
+          uses: number;
+          outbox: number;
+          actionKeys: number;
+          acceptedEvents: number;
+          actions: number;
+        }>(
+          `SELECT
+             (SELECT count(*)::integer FROM verifier.use_records WHERE demo_run_id = $1) AS uses,
+             (SELECT count(*)::integer
+                FROM verifier.outbox_events AS o
+                JOIN verifier.use_records AS u ON u.use_id = o.use_id
+               WHERE u.demo_run_id = $1) AS outbox,
+             (SELECT count(DISTINCT o.action_key)::integer
+                FROM verifier.outbox_events AS o
+                JOIN verifier.use_records AS u ON u.use_id = o.use_id
+               WHERE u.demo_run_id = $1) AS "actionKeys",
+             (SELECT count(*)::integer FROM verifier.protocol_events
+               WHERE demo_run_id = $1 AND event_name = 'USE_ACCEPTED') AS "acceptedEvents",
+             (SELECT count(*)::integer FROM action_sim.action_results WHERE demo_run_id = $1) AS actions`,
+          [currentDemoRunId]
+        );
+        expect(beforeRace.rows[0]).toEqual({
+          uses: 2,
+          outbox: 2,
+          actionKeys: 2,
+          acceptedEvents: 2,
+          actions: 2,
+        });
+        const barrier = createSynchronizationBarrier(copies);
+        const responses = await Promise.all(
+          Array.from({ length: copies }, async () => {
+            await barrier.wait();
+            return submit(prepared);
+          })
+        );
+        expect(barrier.arrived).toBe(copies);
+        const results = await Promise.all(
+          responses.map(async (response) => {
+            const body = useResultSchema.parse(await responseJson(response));
+            expect(response.status).toBe(202);
+            return body;
+          })
+        );
+        const useIds = new Set(results.map((result) => result.useId));
+        expect(useIds.size).toBe(1);
+        expect(results.filter((result) => result.replayed === false)).toHaveLength(1);
+        expect(results.filter((result) => result.replayed === true)).toHaveLength(copies - 1);
+        expect(results.every((result) => result.status === "ACCEPTED_PENDING_ACTION")).toBe(true);
+        const winningUseId = results[0]?.useId;
+        if (!winningUseId) throw new Error("RACE_USE_UNAVAILABLE");
+
+        const durable = await database.pool.query<{
+          uses: number;
+          outbox: number;
+          actionKeys: number;
+          acceptedEvents: number;
+          actions: number;
+        }>(
+          `SELECT
+             (SELECT count(*)::integer FROM verifier.use_records WHERE demo_run_id = $1) AS uses,
+             (SELECT count(*)::integer
+                FROM verifier.outbox_events AS o
+                JOIN verifier.use_records AS u ON u.use_id = o.use_id
+               WHERE u.demo_run_id = $1) AS outbox,
+             (SELECT count(DISTINCT o.action_key)::integer
+                FROM verifier.outbox_events AS o
+                JOIN verifier.use_records AS u ON u.use_id = o.use_id
+               WHERE u.demo_run_id = $1) AS "actionKeys",
+             (SELECT count(*)::integer FROM verifier.protocol_events
+               WHERE demo_run_id = $1 AND event_name = 'USE_ACCEPTED') AS "acceptedEvents",
+             (SELECT count(*)::integer FROM action_sim.action_results WHERE demo_run_id = $1) AS actions`,
+          [currentDemoRunId]
+        );
+        expect(durable.rows[0]).toEqual({
+          uses: 3,
+          outbox: 3,
+          actionKeys: 3,
+          acceptedEvents: 3,
+          actions: 2,
+        });
+        await deliverNextAction();
+        return waitForSucceeded(winningUseId);
+      },
       async armDropNextAcknowledgement(operationId) {
         const response = await fetch(`${apiUrl}/v1/demo/faults/drop-next-ack`, {
           method: "POST",
@@ -600,5 +687,19 @@ describe.sequential("Phase 6 reusable headless golden scenario", () => {
     expect(firstRunAfterReset.rows).toEqual([
       { verifier_rows: 0, action_rows: 0, reset_fences: 1 },
     ]);
+  }, 60_000);
+
+  it("Phase9GoldenVariant passes with twenty overlapping third-use copies", async () => {
+    if (!driver) throw new Error("TEST_DRIVER_UNAVAILABLE");
+    const report = await runGoldenScenario(driver, { raceThirdUse: true, raceCopies: 20 });
+    expect(report.invariants).toEqual({
+      declaredLimit: 3,
+      acceptedDistinctUses: 3,
+      committedExternalActions: 3,
+      extraUsesFromRetry: 0,
+      extraActionsFromRetry: 0,
+      overLimitMutations: 0,
+      allReceiptsStable: true,
+    });
   }, 60_000);
 });

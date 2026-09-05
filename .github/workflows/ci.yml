@@ -1,4 +1,4 @@
-name: Phase 8 Demo Lab P0
+name: Phase 9 resilience and P0
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  phase7-evidence-p0:
+  phase9-resilience-p0:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -19,7 +19,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm setup:env
-      - run: pnpm check:phase7
+      - run: pnpm check:phase9
       - run: docker compose config --quiet
       - run: docker compose build api
       - run: docker compose up -d --no-build --wait --wait-timeout 120

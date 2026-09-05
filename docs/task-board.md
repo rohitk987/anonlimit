@@ -11,7 +11,7 @@
 | Phase 6 — exact bound, rejection, and reset          | G5                      | G6 Backend P0                               | Complete: three uses, safe retry, fourth rejection, and scoped reset passed                                                  | Codex protocol/API lane           |
 | Phase 7 — authoritative evidence and privacy         | G6                      | G7 Evidence P0                              | Complete: backend-derived evidence, safe events/SSE, transient linkability audit, and privacy scans passed                   | Codex QA/privacy lane             |
 | Phase 8 — guided judge experience and P0 lock        | G7                      | G8 P0 lock                                  | Complete: responsive Demo Lab, backend evidence panels, controlled boundary probe, and two real Playwright rehearsals passed | Codex wallet/UI + QA lanes        |
-| Phase 9 — optional concurrency and crash recovery    | G8                      | G9 Full resilience                          | Deferred until P0 is stable; required for full project                                                                       | Codex data/reliability + QA lanes |
+| Phase 9 — optional concurrency and crash recovery    | G8                      | G9 Full resilience                          | Complete: 20-request race, lease recovery, crash redelivery, bounded retry, and dead-letter visibility passed                | Codex data/reliability + QA lanes |
 | Phase 10 — release, packaging, and rehearsal         | G8; G9 for full project | G10 Submission                              | Not started                                                                                                                  | Codex integration captain         |
 
 The integration captain owns root configuration and gate results. These lanes are responsibilities of the current single implementation owner, not additional human contributors. Assign explicit file ownership before parallel implementation. Optional work may not begin before the P0 gates are stable, and P2 is excluded from the hackathon.
@@ -22,7 +22,14 @@ See [Phase 0 kickoff](phase-0-kickoff.md) for the default policy, golden scenari
 
 Phase 8 is complete and G8 passed. The Demo Lab presents the real reset → issue → use → lost acknowledgement → exact retry → bound rejection → audit flow. It renders backend-derived metrics, a safe reconnecting event trace, masked evidence records, invariant statuses, a pairwise linkability matrix, and the opaque-crypto assumptions. The real Playwright golden flow passed twice from reset in 9.2s and 8.0s, with independent PostgreSQL ledger checks and mobile-width/keyboard assertions. See [the demo script](demo-script.md).
 
-The next step is Phase 9 resilience, which remains deferred until the P0 lock is protected.
+Phase 9 is complete and G9 passed. See the [Phase 9 resilience record](phase-9-resilience.md). The next step is Phase 10 release packaging and rehearsal.
+
+## Phase 9 result
+
+The full golden driver now supports a synchronized 20-copy third-use race. PostgreSQL-backed worker
+tests prove disjoint leases, expired-lease recovery, crash recovery before and after external commit,
+stable idempotent receipts, bounded retry, and visible dead-letter exhaustion. The Action Simulator
+integrity conflict and privacy suites remain cumulative gates.
 
 ## Phase 7 result
 

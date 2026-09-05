@@ -88,6 +88,11 @@ export interface GoldenScenarioDriver<TCredential, TPresentation> {
   submitAndComplete(
     presentation: GoldenPreparedPresentation<TPresentation>
   ): Promise<GoldenCompletedUse>;
+  /** Submit the same fresh presentation concurrently and complete its single winning use. */
+  submitConcurrentAndComplete?(
+    presentation: GoldenPreparedPresentation<TPresentation>,
+    copies: number
+  ): Promise<GoldenCompletedUse>;
   armDropNextAcknowledgement(operationId: string): Promise<void>;
   /**
    * Submit a presentation whose acknowledgement will be dropped after durable completion.
@@ -120,6 +125,13 @@ export interface GoldenScenarioReport {
   readonly uses: readonly [GoldenCompletedUse, GoldenRetryResult, GoldenCompletedUse];
   readonly checkpoints: readonly GoldenCheckpoint[];
   readonly invariants: GoldenInvariantReport;
+}
+
+export interface GoldenScenarioOptions {
+  /** Replace the normal third use with the Phase 9 concurrent duplicate race. */
+  readonly raceThirdUse?: boolean;
+  /** Number of identical presentations in the race; defaults to the required twenty. */
+  readonly raceCopies?: number;
 }
 
 export class GoldenScenarioAssertionError extends Error {
@@ -222,7 +234,8 @@ function mutationDistance(before: GoldenBackendSnapshot, after: GoldenBackendSna
 
 /** Run the complete Phase 6 P0 flow and fail at the first backend invariant violation. */
 export async function runGoldenScenario<TCredential, TPresentation>(
-  driver: GoldenScenarioDriver<TCredential, TPresentation>
+  driver: GoldenScenarioDriver<TCredential, TPresentation>,
+  options: GoldenScenarioOptions = {}
 ): Promise<GoldenScenarioReport> {
   const checkpoints: GoldenCheckpoint[] = [];
   const record = async (
@@ -354,7 +367,18 @@ export async function runGoldenScenario<TCredential, TPresentation>(
     policy,
     hiddenSlot: 2,
   });
-  const slot2 = await driver.submitAndComplete(slot2Presentation);
+  const slot2 = options.raceThirdUse
+    ? await (async () => {
+        if (!driver.submitConcurrentAndComplete)
+          throw new GoldenScenarioAssertionError("SLOT_2_SUCCEEDED: race driver unavailable");
+        const copies = options.raceCopies ?? 20;
+        assert(
+          Number.isSafeInteger(copies) && copies >= 2,
+          "SLOT_2_SUCCEEDED: raceCopies must be at least two"
+        );
+        return driver.submitConcurrentAndComplete(slot2Presentation, copies);
+      })()
+    : await driver.submitAndComplete(slot2Presentation);
   const slot2Snapshot = await record(
     "SLOT_2_SUCCEEDED",
     {
