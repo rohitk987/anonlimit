@@ -1,6 +1,6 @@
 # Phase 0 — Kickoff and scope lock
 
-Date: 2026-09-05. Workspace: `D:/myonsite`. Status: Phase 0 complete; scope, ownership, and local prerequisites verified. Phase 1 implementation is next.
+Date: 2026-09-05. Workspace: repository root. Status: Phase 0 complete; scope, ownership, and local prerequisites verified. Phase 1 implementation is next.
 
 ## Finish line
 
@@ -85,7 +85,7 @@ The initial check found Node `26.7.0` on the system PATH, pnpm `11.19.0`, Docker
 Use the bundled runtime for this PowerShell session before development commands:
 
 ```powershell
-$taskNodeBin = 'C:\Users\rohit\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin'
+$taskNodeBin = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin'
 $env:Path = "$taskNodeBin;$env:Path"
 node --version
 pnpm --version
@@ -116,7 +116,7 @@ Verified results:
 
 Docker Desktop `4.62.0` initially failed while initializing its inference manager because its `dockerInference` runtime socket could not be removed: `The file cannot be accessed by the system`. A subsequent attempt also exposed an inaccessible `engine.sock`. Preserving and recreating runtime directories alone did not fix startup from the automated command session.
 
-A diagnostic socket created under `D:/myonsite/.cache` cleaned up on close. The same test under Docker's AppData directories left an inaccessible socket. Running the AppData test through the existing Windows Explorer desktop cleaned up normally. Launching Docker through that Explorer context then restored the engine. This establishes a launch-context interaction on this machine; the precise Windows mechanism remains unconfirmed. Both diagnostic contexts reported no package identity, so MSIX virtualization has not been established as the cause. No reinstall, Windows reboot, or factory reset was used for this successful repair.
+A diagnostic socket created under the repository's ignored `.cache` directory cleaned up on close. The same test under Docker's AppData directories left an inaccessible socket. Running the AppData test through the existing Windows Explorer desktop cleaned up normally. Launching Docker through that Explorer context then restored the engine. This establishes a launch-context interaction on this machine; the precise Windows mechanism remains unconfirmed. Both diagnostic contexts reported no package identity, so MSIX virtualization has not been established as the cause. No reinstall, Windows reboot, or factory reset was used for this successful repair.
 
 The PostgreSQL check used `anonlimit-phase0-pg-20260905-0748`, with network disabled, no published ports, and database storage on temporary memory-backed storage. SQL confirmed server major version 17, wrote and read a temporary table, and rolled back. The container was stopped and its automatic removal was verified. The official image remains cached at digest `sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73`. Existing user containers were left running.
 

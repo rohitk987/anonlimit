@@ -1,80 +1,132 @@
 # AnonLimit
 
-AnonLimit is a bounded-use credential simulation. Its planned demonstration permits three uses, recovers exact retries without extra consumption, and rejects a fourth use without storing a holder identity.
+**Limit the use. Leave the person unknown.**
 
-**Phases 0–10 are implemented, and G10 release submission has passed.** The workspace and PostgreSQL runtime run locally. A browser-held credential can be issued, presented, accepted durably, and delivered through the leased worker to the private Action Simulator. The Demo Lab completes all three hidden slots, recovers a dropped acknowledgement by retrying the exact IndexedDB request with zero extra use or action, rejects an authenticated fourth-slot proof without mutation, resets one server-owned run, and renders backend-derived evidence, safe events, invariant checks, a linkability matrix, and the opaque-crypto assumptions. The Phase 9 golden variant proves a synchronized twenty-request race and worker crash recovery, while the Phase 10 release scripts verify pinned images, cold start, readiness, full quality, and a 100-run soak.
+AnonLimit is a working bounded-use credential simulation. It issues one anonymous pass to a browser wallet, permits exactly three uses, recovers an exact retry without spending another use, and rejects a fourth use without storing a holder identity.
 
-Read [memory.md](memory.md) for the current handoff and [AGENTS.md](AGENTS.md) for AI continuity instructions. The [phase board](docs/task-board.md), [Phase 7 record](docs/phase-7-evidence-privacy.md), [Phase 6 record](docs/phase-6-bound-reset.md), [Phase 5 record](docs/phase-5-safe-retry.md), [Phase 4 record](docs/phase-4-first-complete-use.md), [durable acceptance record](docs/phase-3-durable-acceptance.md), [protocol record](docs/phase-2-protocol.md), [foundation record](docs/phase-1-foundation.md), and [kickoff record](docs/phase-0-kickoff.md) contain scope and verification details.
+The guided Demo Lab pairs that flow with backend-derived evidence: committed-use and action counts, a safe event trace, masked records, invariant checks, and a transient linkability audit. Its cryptography is deliberately simulated, so the project demonstrates protocol behavior, privacy-aware storage, idempotent recovery, and system boundaries rather than production anonymity.
 
-## Start locally
+The canonical repository is [github.com/rohitk987/anonlimit](https://github.com/rohitk987/anonlimit).
 
-Prerequisites: Node.js **24**, pnpm **11.19.0**, and a healthy Docker Linux engine with Compose. This machine's system Node 26 is incompatible; [memory.md](memory.md) records the available Node 24 path and Docker startup helper.
+## What the demo proves
 
-Run from the repository root:
+| Scenario                             | Observable result                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Three allowed uses                   | Three verifier acceptances produce three independently recorded external actions and stable receipts.                     |
+| Lost acknowledgement                 | The browser retains the exact IndexedDB request and recovers the original result with zero additional use or action.      |
+| Fourth-use boundary                  | An authenticated simulator probe reaches the real verifier and is rejected without ledger mutation.                       |
+| Privacy evidence                     | Server views expose masked references and allowlisted events without holder identity, raw proof, or raw nullifier fields. |
+| Linkability audit                    | Distinct accepted uses report `UNLINKABLE`; an exact retry reports `SAME_USE` under the simulated provider contract.      |
+| Concurrent replay and worker failure | PostgreSQL uniqueness, leased outbox recovery, and stable action keys converge duplicate work on one effect.              |
+
+The limit belongs to one issued pass. A real deployment still needs an issuance policy that decides who may receive another pass.
+
+## Run locally
+
+You need Node.js **24.x**, pnpm **11.19.0**, and a healthy Docker engine with Compose and Linux containers.
 
 ```powershell
+git clone https://github.com/rohitk987/anonlimit.git
+cd anonlimit
 pnpm install --frozen-lockfile
 pnpm setup:env
 docker compose config --quiet
 docker compose build api
 docker compose up -d --no-build --wait --wait-timeout 120
+pnpm wait:services
 ```
 
-Run `setup:env` only on first setup. It generates random local secrets in ignored `.env` and refuses to overwrite an existing file. `.env.example` documents names and safe placeholders. Do not use its placeholder passwords as runtime values.
+`pnpm setup:env` generates ignored local configuration and issuer material, and refuses to overwrite an existing `.env`. All application services share the image built through `api`, so Compose can start the complete stack with `--no-build`.
 
-Open [AnonLimit](http://localhost:5173). The public API exposes [liveness](http://localhost:4000/health/live) and [database readiness](http://localhost:4000/health/ready). Use the localhost hostname so the browser origin matches the generated CORS configuration.
+Open [http://localhost:5173](http://localhost:5173). Use the `localhost` hostname so the browser origin matches the generated CORS configuration. The public API exposes [liveness](http://localhost:4000/health/live) and [database readiness](http://localhost:4000/health/ready). PostgreSQL, the worker, and the Action Simulator remain private; only the web and API ports bind to loopback.
 
-Only web and API ports are published, bound to loopback. PostgreSQL, Action Simulator, and worker have no host ports. The migration job exits successfully before the application services start.
+The full setup, development workflow, and troubleshooting guide is in [docs/getting-started.md](docs/getting-started.md).
 
-```powershell
-docker compose ps -a
-docker compose run --rm migrate
-docker compose down
-```
+## Follow the Demo Lab
 
-Stopping the stack preserves its database volume. Bootstrap roles and passwords are initialized on an empty volume; keep the existing environment file with that volume.
+1. Reset the demo run and issue an anonymous pass.
+2. Use the first slot and wait for its receipt.
+3. Arm an acknowledgement drop, use the second slot, and optionally refresh while its outcome is unknown.
+4. Retry the exact stored request and confirm both retry deltas remain zero.
+5. Use the third slot, then attempt the controlled fourth-use probe.
+6. Run the privacy audit and inspect the evidence, trace, invariants, and linkability matrix.
 
-`pnpm dev` runs the Compose stack in the foreground and builds changes. `pnpm dev:apps` is an optional process-watch command for developers who separately supply valid environment variables and reachable database/service URLs; the generated Compose-only database hostnames do not resolve from host processes.
+Every control sends real protocol requests. The wallet card reports browser-local IndexedDB state; the evidence workspace reports sanitized server state. See [docs/demo-script.md](docs/demo-script.md) for the timed narration.
 
 ## Verify the release
 
+With the Compose stack running, the complete quality gate is:
+
 ```powershell
-pnpm check:phase9
+pnpm exec playwright install chromium
 pnpm check:release
 pnpm audit:privacy
-pnpm demo:golden
-pnpm demo:golden:race
-pnpm demo:golden:soak
-pnpm demo:reset
-pnpm wait:services
-pnpm release:rehearsal
-pnpm test:integration
-pnpm exec playwright install chromium
-pnpm test:e2e
 ```
 
-`pnpm check:release` runs the full formatting, lint, type, unit, contract, integration, privacy, build, and browser gate. `pnpm wait:services` checks the API readiness endpoint and web response after Compose startup. `pnpm demo:golden:soak` defaults to 100 synchronized race scenarios; set `GOLDEN_SOAK_RUNS=10` for the CI repetition. `pnpm release:rehearsal` performs a clean Compose rebuild, readiness check, full gate, ten-run soak, and cleanup while preserving the database volume. `pnpm audit:privacy` scans generated browser assets and local secret markers without printing values. `pnpm demo:golden` runs the cumulative headless golden scenario, including the Phase 9 race. `pnpm demo:golden:race` runs the focused twenty-request race. `pnpm demo:reset` calls the public server-owned reset endpoint (optionally with an API base URL argument). `pnpm test:e2e` runs two complete Phase 8 rehearsals plus the wallet recovery regressions; the narration is in [docs/demo-script.md](docs/demo-script.md).
+Install Chromium once on a clean host. `pnpm check:release` then runs formatting, linting, strict type checks, unit tests, contract tests, the complete integration suite, privacy tests, the production build, and Playwright. `pnpm audit:privacy` separately scans the generated browser assets and local secret markers without printing their values.
 
-A CI workflow in [ci.yml](.github/workflows/ci.yml) reproduces the cumulative gate with a frozen install, isolated PostgreSQL tests, a Compose stack, live role checks, and Playwright. Its hosted execution has not been observed locally.
+The release rehearsal owns startup and cleanup:
 
-Stable commands also include `pnpm check:foundation`, `pnpm check:protocol`, `pnpm check:phase9`, `pnpm check:release`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:unit`, `pnpm test:contract`, `pnpm test:integration:phase6`, `pnpm test:integration:phase7`, `pnpm test:integration:phase9`, `pnpm test:privacy`, and `pnpm audit:privacy`. G6 certifies the three-use bound, safe retry, zero-mutation fourth rejection, and scoped reset; G7 certifies backend-derived evidence, safe event replay, transient linkability auditing, and privacy scanning; G8 certifies the responsive guided browser flow; G9 certifies the synchronized race and worker recovery matrix; G10 certifies the pinned release, cold start, full quality gate, ten-run CI repetition, and 100-run final soak.
+```powershell
+pnpm release:rehearsal
+```
+
+It performs this sequence:
+
+1. Validate the Compose configuration.
+2. Build the shared application image once through `docker compose build api`.
+3. Stop any prior project stack and start all services with `--no-build --wait`.
+4. Check readiness, run `check:release`, run `audit:privacy`, and run the synchronized race soak.
+5. Stop containers and remove orphans in a final cleanup while preserving the PostgreSQL volume.
+
+The soak reads `GOLDEN_SOAK_RUNS`, accepts 1 through 100, and defaults to **100** when it is unset. CI intentionally overrides it to 10. To shorten a local rehearsal in PowerShell:
+
+```powershell
+$env:GOLDEN_SOAK_RUNS = "10"
+pnpm release:rehearsal
+Remove-Item Env:GOLDEN_SOAK_RUNS
+```
+
+Phase 10's recorded G10 evidence includes the full release gate, two browser rehearsals, the concurrent race and worker recovery matrix, a 10-run CI repetition, and a separate 100-of-100 final soak. See [docs/phase-10-release.md](docs/phase-10-release.md) for the exact record.
+
+## Original AnonLimit interface
+
+The public frontend uses an Apple-inspired visual language while remaining an original AnonLimit interface. Its custom brand mark, conceptual three-use pass, product copy, responsive page composition, wallet states, and evidence panels are implemented in the repository without Apple branding or interface assets.
+
+The visual system combines quiet system typography, generous spacing, monochrome surfaces, blue actions, and explicit semantic states. Keyboard navigation, visible focus, reduced-motion handling, live status text, and narrow-screen layouts are part of the design contract. See [docs/frontend-design.md](docs/frontend-design.md) before changing the public experience.
 
 ## Workspace
 
-| Location                 | Responsibility                                                                           |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `apps/web`               | React/Vite holder wallet with IndexedDB state and real protocol flow                     |
-| `apps/api`               | Fastify protocol, evidence, safe event stream, demo-fault, linkability, and reset routes |
-| `apps/worker`            | Private leased outbox delivery and atomic receipt completion                             |
-| `apps/action-simulator`  | Private Fastify idempotent action, reset, and sanitized evidence endpoints               |
-| `packages/contracts`     | Strict public/internal protocol schemas and safe-field allowlists                        |
-| `packages/domain`        | Pure policy, canonicalization, retry/state, key, and evidence rules                      |
-| `packages/crypto`        | Browser holder plus server issuer/verifier/audit simulated adapters                      |
-| `packages/db`            | Role-specific repositories, durable acceptance, evidence views, seed, and migrations     |
-| `packages/config`        | Separate validated server/client configuration                                           |
-| `packages/observability` | Log field allowlist, including child logger bindings                                     |
-| `packages/testing`       | Test-only helpers prohibited in production imports                                       |
+| Location                 | Responsibility                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `apps/web`               | React/Vite holder wallet and guided evidence experience.                               |
+| `apps/api`               | Fastify issuance, verification, evidence, events, audit, demo-fault, and reset routes. |
+| `apps/worker`            | Private leased outbox delivery and atomic receipt completion.                          |
+| `apps/action-simulator`  | Private idempotent action, reset, and sanitized evidence service.                      |
+| `packages/contracts`     | Strict public and internal schemas plus safe-field allowlists.                         |
+| `packages/domain`        | Policy, canonicalization, retry, state, key, and evidence rules.                       |
+| `packages/crypto`        | Browser holder and server-side simulated opaque-provider adapters.                     |
+| `packages/db`            | Role-specific repositories, durable acceptance, evidence views, seeds, and migrations. |
+| `packages/config`        | Separate validated browser and server configuration.                                   |
+| `packages/observability` | Log-field allowlists, including child logger bindings.                                 |
+| `packages/testing`       | Test-only fixtures, scanners, synchronization, and golden scenarios.                   |
 
-The local foundation image uses Vite preview and includes build tooling. Release packaging is recorded in [docs/phase-10-release.md](docs/phase-10-release.md), with the threat model and deployment limitations in [docs/threat-model.md](docs/threat-model.md). The [crypto boundary](packages/crypto/README.md) documents why the simulated provider is not production anonymity or zero-knowledge cryptography.
+## Documentation
 
-Product requirements and implementation gates are in [prd.md](prd.md), [architecture.md](architecture.md), [phases.md](phases.md), and [rules.md](rules.md).
+- [Getting started](docs/getting-started.md)
+- [Frontend design](docs/frontend-design.md)
+- [Demo narration](docs/demo-script.md)
+- [Phase 10 release record](docs/phase-10-release.md)
+- [Threat model and limitations](docs/threat-model.md)
+- [Architecture](architecture.md)
+- [Product requirements](prd.md)
+- [Implementation phases](phases.md)
+- [Protocol rules](rules.md)
+
+## Security boundary
+
+AnonLimit uses a deterministic simulated opaque provider. It does not provide production zero-knowledge cryptography or prove that an issuer cannot recognize a holder. Production use requires reviewed cryptography, issuer-key management, administrator authentication, rate limiting, monitoring, TLS, and a defined pass-issuance policy. The [crypto boundary](packages/crypto/README.md) and [threat model](docs/threat-model.md) describe these limitations in detail.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, privacy guardrails, validation commands, and pull-request expectations.

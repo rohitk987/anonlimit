@@ -64,6 +64,7 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
           <strong>Loading backend evidence</strong>
           <p className="muted">{streamState}</p>
         </section>
+        <AssumptionsPanel />
       </div>
     );
   }
@@ -93,7 +94,7 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
         <div className="panel-heading">
           <div>
             <p className="eyebrow">03 / VERIFIER EVIDENCE</p>
-            <h2 id="evidence-title">What the system can prove</h2>
+            <h2 id="evidence-title">Trust the records.</h2>
           </div>
           <div className="overall">
             <span className="muted">OVERALL</span>
@@ -102,7 +103,9 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
             </strong>
           </div>
         </div>
-        <p className="muted">{streamState}</p>
+        <p className="muted">
+          Live counts from verifier storage and the independent action service. {streamState}
+        </p>
         <div className="metrics">
           <Metric
             id="metric-committedUses"
@@ -288,31 +291,38 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
           ) : null}
         </section>
       </div>
-      <section
-        className="panel assumptions"
-        data-testid="assumptions"
-        aria-labelledby="assumption-title"
-      >
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">08 / ASSUMPTIONS</p>
-            <h2 id="assumption-title">Opaque crypto boundary</h2>
-          </div>
-          <span className="pill pill-purple">SIMULATED</span>
-        </div>
-        <p>
-          These results assume the opaque issuer, holder, verifier, and audit adapters preserve
-          their stated cryptographic properties. This project demonstrates protocol behavior and
-          durable recovery; it does not provide production cryptography or prove that an issuer
-          cannot recognize a holder.
-        </p>
-        <div className="assumption-grid">
-          <span>✓ Bound slots are authenticated</span>
-          <span>✓ Distinct-use unlinkability is adapter supplied</span>
-          <span>✓ Browser wallet is holder-only</span>
-          <span>✓ Server stores safe evidence only</span>
-        </div>
-      </section>
+      <AssumptionsPanel />
     </div>
+  );
+}
+
+function AssumptionsPanel() {
+  return (
+    <section
+      className="panel assumptions"
+      id="assumptions"
+      data-testid="assumptions"
+      aria-labelledby="assumption-title"
+    >
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">08 / ASSUMPTIONS</p>
+          <h2 id="assumption-title">Privacy has a clear boundary.</h2>
+        </div>
+        <span className="pill">SIMULATED CRYPTO</span>
+      </div>
+      <p>
+        These results assume the opaque issuer, holder, verifier, and audit adapters preserve their
+        stated cryptographic properties. This project demonstrates protocol behavior and durable
+        recovery; it does not provide production cryptography or prove that an issuer cannot
+        recognize a holder.
+      </p>
+      <div className="assumption-grid">
+        <span>Bound slots are authenticated</span>
+        <span>Distinct-use unlinkability is adapter supplied</span>
+        <span>Browser wallet is holder-only</span>
+        <span>Server stores safe evidence only</span>
+      </div>
+    </section>
   );
 }

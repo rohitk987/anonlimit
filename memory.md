@@ -1,9 +1,9 @@
 # AnonLimit project memory
 
 Last updated: 2026-09-06 (Asia/Calcutta).
-Project root: `D:/myonsite`.
-Current milestone: **Phases 0–10 complete; G10 release submission passed.**
-Git branch: `codex/phase-2-protocol`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); Phase 7 implementation is committed at `ec391b6` (`feat: complete phase 7 evidence privacy`); Phase 10 release work is committed in the current HEAD (`feat: complete phase 10 release rehearsal`). Check `git status` and `git log -1` for the current revision.
+Project root: repository root.
+Current milestone: **Phases 0–10 complete; G10 passed; Apple-inspired frontend and public release complete.**
+Git branch: `codex/apple-frontend-public-release`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); Phase 7 implementation is committed at `ec391b6` (`feat: complete phase 7 evidence privacy`); Phase 10 release work is committed in the prior release HEAD (`feat: complete phase 10 release rehearsal`). Check `git status` and `git log -1` for the current revision.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
 
@@ -38,6 +38,14 @@ Detailed policy and kickoff decisions: [Phase 0 record](docs/phase-0-kickoff.md)
 | 10    | Release and rehearsal         | Complete; G10 release submission passed        |
 
 Codex is the integration owner. Responsibilities and dependencies are in [the task board](docs/task-board.md). The project is release-ready under the documented simulated-crypto limitations.
+
+## Public frontend release
+
+- The public repository is `https://github.com/rohitk987/anonlimit`.
+- The frontend now follows the supplied Apple-inspired visual direction using original AnonLimit branding, a code-native conceptual pass, system typography, parchment and black surfaces, blue pill actions, responsive layouts, visible focus, and reduced-motion support.
+- The existing protocol controls, IndexedDB wallet behavior, backend-derived evidence, status copy, accessibility labels, and end-to-end test selectors remain intact.
+- Public documentation now includes a concise README, clean-checkout guide, contribution guide, frontend design contract, threat model, and phase/release records.
+- The public-release rehearsal passed formatting, lint, type checks, 309 unit tests, 9 contract tests, 39 integration tests, 24 privacy tests, the production build, 5 Chromium tests, the browser privacy scan, and a configured 10-run concurrency repetition. The rehearsal cleaned up containers and preserved the PostgreSQL volume.
 
 ## Implemented system
 
@@ -118,7 +126,7 @@ has not been observed locally.
   response without logging response bodies.
 - `scripts/run-release-soak.ts` runs the synchronized twenty-copy third-use race with a bounded
   `GOLDEN_SOAK_RUNS` value. `scripts/run-release-rehearsal.ts` performs config validation, clean Compose
-  restart/build, readiness, the full release gate, a ten-run soak, and cleanup while preserving the DB
+  restart/build, readiness, the full release gate, the privacy audit, a configurable soak that defaults to 100 runs, and cleanup while preserving the DB
   volume.
 - `docs/threat-model.md` records assets, trust boundaries, concurrent duplicate and crash threats,
   privacy limits, and the production work still required beyond the simulated provider.
@@ -157,7 +165,7 @@ The full release checklist and limitations are in [docs/phase-10-release.md](doc
 | `pnpm check:release`           | Passed formatting, lint, types, 309 unit, 9 contract, 39 integration, 24 privacy, build, and 5 browser tests                                              |
 | `pnpm demo:golden:race`        | 10 consecutive focused race runs passed                                                                                                                   |
 | `pnpm demo:golden:soak`        | 100 consecutive synchronized race scenarios passed in 42.46s                                                                                              |
-| `pnpm release:rehearsal`       | Clean rebuild, readiness, full release gate, ten-run soak, and cleanup passed                                                                             |
+| `pnpm release:rehearsal`       | Clean rebuild, readiness, full release gate, privacy audit, configured soak, and cleanup passed                                                           |
 | Existing-volume migration      | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                                                    |
 | Retry invariant                | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned                                             |
 | Runtime privacy                | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                                                   |
@@ -178,15 +186,16 @@ G5 certifies one durable lost acknowledgement and exact recovery with retry usag
 
 ## Local setup and Docker recovery
 
-The tool's default directory may be a OneDrive folder. Always work in `D:/myonsite`. System PATH initially selects incompatible Node 26.7.0. For this machine:
+The tool's default directory may differ from the checkout. Resolve the repository root before running commands. System PATH may select an incompatible Node version. For the recorded Windows development environment:
 
 ```powershell
-Set-Location D:/myonsite
-$taskNodeBin = 'C:\Users\rohit\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin'
+$repositoryRoot = git rev-parse --show-toplevel
+Set-Location $repositoryRoot
+$taskNodeBin = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin'
 $env:Path = "$taskNodeBin;$env:Path"
 node --version
 pnpm --version
-& 'D:\myonsite\scripts\start-docker-desktop.ps1'
+& '.\scripts\start-docker-desktop.ps1'
 ```
 
 Use the existing `.env` with its existing PostgreSQL volume. Initial role/password bootstrap runs only on an empty volume. Never use a factory reset or volume deletion as routine repair.
@@ -214,13 +223,14 @@ TypeScript 6.0.3 and Vitest 4.1.11 are deliberate compatibility pins. Keep stric
 
 ## Next step
 
-Maintain the release baseline. Future changes must rerun `pnpm check:release`, the privacy audit, the
-browser rehearsal, and the final soak when protocol, persistence, or runtime packaging changes.
+Maintain the public release baseline. Future changes must rerun `pnpm check:release` and the privacy
+audit; use the concurrency soak when protocol, persistence, or runtime packaging changes.
 
 ## Recent milestones
 
 | Date       | Milestone                                       | Outcome                                 |
 | ---------- | ----------------------------------------------- | --------------------------------------- |
+| 2026-09-06 | Public frontend and documentation released      | Apple-inspired interface verified       |
 | 2026-09-06 | Phase 10 release and rehearsal completed        | G10 release submission passed           |
 | 2026-09-06 | Phase 9 resilience implemented                  | G9 full resilience passed               |
 | 2026-09-06 | Phase 7 evidence and privacy implemented        | G7 Evidence P0 passed; Phase 8 followed |

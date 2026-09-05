@@ -1,6 +1,6 @@
 # Phase 1 foundation record
 
-Date: 2026-09-05. Canonical workspace: `D:/myonsite`.
+Date: 2026-09-05. Canonical workspace: repository root.
 
 ## Implemented scope
 

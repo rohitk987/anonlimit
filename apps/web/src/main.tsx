@@ -271,24 +271,29 @@ function App() {
                     : "READY";
 
   return (
-    <main className="shell">
+    <div className="shell" id="overview">
       <a className="skip-link" href="#controls">
         Skip to demo controls
       </a>
       <header className="lab-header">
-        <a className="brand" href="/">
-          Anon<span>Limit</span>
-          <span className="mark" aria-hidden="true">
-            ↗
-          </span>
-        </a>
-        <span className="badge">DEMO LAB / P0</span>
-        <span className="connection" role="status" data-testid="connection">
-          {connection}
-        </span>
+        <nav className="global-nav" aria-label="Main navigation">
+          <a className="brand" href="#overview" aria-label="AnonLimit home">
+            <svg className="brand-symbol" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 17 9 6h6l5 11M7 12h10" stroke="currentColor" strokeWidth="1.8" />
+              <circle cx="12" cy="18" r="1.5" fill="currentColor" />
+            </svg>
+            AnonLimit
+          </a>
+          <div className="nav-links">
+            <a href="#demo">Demo Lab</a>
+            <a href="#evidence">Evidence</a>
+            <a href="#assumptions">Assumptions</a>
+          </div>
+          <span className="nav-note">An open protocol experiment</span>
+        </nav>
       </header>
       <section className="intro">
-        <p className="eyebrow">THE PRIVACY PARADOX</p>
+        <p className="eyebrow">ANONLIMIT</p>
         <h1>
           Limit the use.
           <br />
@@ -298,132 +303,225 @@ function App() {
           One anonymous pass. Three article views. Recover a lost response without spending another
           use, then inspect what the verifier actually knows.
         </p>
+        <div className="hero-actions">
+          <a className="button-primary hero-button" href="#demo">
+            Explore the demo
+          </a>
+          <a className="text-link" href="#assumptions">
+            Understand the boundaries <span aria-hidden="true">›</span>
+          </a>
+        </div>
+        <figure className="pass-figure">
+          <div className="pass-illustration" aria-hidden="true">
+            <div className="pass-topline">
+              <span>AnonLimit</span>
+              <span>ANONYMOUS ACCESS</span>
+            </div>
+            <div className="pass-content">
+              <span className="pass-number">03</span>
+              <div className="pass-copy">
+                <span>A little access.</span>
+                <span>A lot less identity.</span>
+              </div>
+            </div>
+            <div className="pass-bottomline">
+              <span>ONE PASS. THREE POSSIBILITIES.</span>
+              <div className="pass-slots">
+                <span>1</span>
+                <span>2</span>
+                <span>3</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>Conceptual pass · three allowed uses, held in your browser</figcaption>
+        </figure>
+        <p className="hero-footnote">
+          A working protocol demo with simulated cryptography.
+          <br />
+          The limit belongs to a pass. Issuance policy decides who gets one.
+        </p>
       </section>
-      <div className="lab-grid">
-        <aside className="sidebar">
-          <section className="panel" id="controls" aria-labelledby="guide-title">
-            <p className="eyebrow">01 / GUIDED EXPERIMENT</p>
-            <h2 id="guide-title">Three uses. Zero identity.</h2>
-            <p className="muted">
-              Reset → issue → use one → drop acknowledgement → use two → retry → use three →
-              boundary probe → audit.
-            </p>
-            {staleWallet ? (
-              <p role="alert">
-                This wallet belongs to an earlier demo run. Reset to start a consistent scenario.
-              </p>
-            ) : null}
-            <div className="control-stack">
-              <button
-                className="button-primary"
-                type="button"
-                onClick={() => void issue()}
-                disabled={controlsDisabled || Boolean(credential) || unresolved}
-              >
-                Issue anonymous pass
-              </button>
-              <button
-                className="button-primary"
-                type="button"
-                onClick={() => void useNext()}
-                disabled={controlsDisabled || !credential || remaining === 0 || unresolved}
-              >
-                Use next slot
-              </button>
-              {config.demoMode ? (
-                <button
-                  type="button"
-                  onClick={() => void armDropAck()}
-                  disabled={
-                    controlsDisabled || !credential || remaining === 0 || unresolved || faultArmed
-                  }
-                >
-                  Drop next acknowledgement
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void retryLast()}
-                disabled={controlsDisabled || !unresolved}
-              >
-                Retry last request
-              </button>
-              {config.demoMode ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void probeBoundary()}
-                    disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
-                  >
-                    Attempt fourth use
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void runAudit()}
-                    disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
-                  >
-                    Run privacy audit
-                  </button>
-                  <button
-                    className="button-danger"
-                    type="button"
-                    onClick={() => void resetDemo()}
-                    disabled={busy}
-                  >
-                    Reset demo run
-                  </button>
-                </>
-              ) : null}
+      <main>
+        <section className="demo-section" id="demo" aria-labelledby="demo-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">THE DEMO LAB</p>
+              <h2 id="demo-title">Try it. Retry it. See the proof.</h2>
             </div>
-            <p className="muted">
-              “Attempt fourth use” sends a controlled simulator boundary probe through the real
-              verifier.
-            </p>
-          </section>
-          <section className="panel wallet" aria-labelledby="wallet-title" aria-busy={busy}>
-            <p className="eyebrow">02 / HOLDER WALLET · LOCAL ONLY</p>
-            <h2 id="wallet-title">Your browser's private pass</h2>
-            <p className="muted">
-              IndexedDB stores the pass, slots, and exact pending request on this browser. These
-              local slots are not the verifier's counter.
-            </p>
-            <p
-              className="protocol-state"
-              data-tone={tone}
-              data-testid="operation-status"
-              aria-live="polite"
+            <span
+              className="connection"
+              role="status"
+              data-testid="connection"
+              data-state={
+                connection === "API and database connected"
+                  ? "connected"
+                  : connection.startsWith("API unavailable")
+                    ? "unavailable"
+                    : "checking"
+              }
             >
-              {protocolState}
-            </p>
-            <div className="wallet-grid">
-              <article>
-                <span className="index">LOCAL SLOTS</span>
-                <strong>{credential ? "Credential ready" : "No credential"}</strong>
-                <p>
-                  {credential
-                    ? `${remaining} of ${credential.policy.maxUses} uses available`
-                    : "Issue a pass to create local slots."}
+              <span className="connection-dot" aria-hidden="true" />
+              {connection}
+            </span>
+          </div>
+          <div className="lab-grid">
+            <div className="sidebar">
+              <section className="panel" id="controls" aria-labelledby="guide-title">
+                <p className="eyebrow">01 / GUIDED EXPERIMENT</p>
+                <h2 id="guide-title">Three uses. Zero identity.</h2>
+                <p className="muted">Follow one pass from its first use to its final boundary.</p>
+                <ol className="journey" aria-label="Demo sequence">
+                  <li>
+                    <span>1</span>Issue & use
+                  </li>
+                  <li>
+                    <span>2</span>Lose & retry
+                  </li>
+                  <li>
+                    <span>3</span>Finish & audit
+                  </li>
+                </ol>
+                {staleWallet ? (
+                  <p role="alert">
+                    This wallet belongs to an earlier demo run. Reset to start a consistent
+                    scenario.
+                  </p>
+                ) : null}
+                <div className="control-stack">
+                  <button
+                    className="button-primary"
+                    type="button"
+                    onClick={() => void issue()}
+                    disabled={controlsDisabled || Boolean(credential) || unresolved}
+                  >
+                    Issue anonymous pass
+                  </button>
+                  <button
+                    className="button-primary"
+                    type="button"
+                    onClick={() => void useNext()}
+                    disabled={controlsDisabled || !credential || remaining === 0 || unresolved}
+                  >
+                    Use next slot
+                  </button>
+                  {config.demoMode ? (
+                    <button
+                      type="button"
+                      onClick={() => void armDropAck()}
+                      disabled={
+                        controlsDisabled ||
+                        !credential ||
+                        remaining === 0 ||
+                        unresolved ||
+                        faultArmed
+                      }
+                    >
+                      Drop next acknowledgement
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void retryLast()}
+                    disabled={controlsDisabled || !unresolved}
+                  >
+                    Retry last request
+                  </button>
+                  {config.demoMode ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void probeBoundary()}
+                        disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
+                      >
+                        Attempt fourth use
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runAudit()}
+                        disabled={controlsDisabled || !credential || remaining !== 0 || unresolved}
+                      >
+                        Run privacy audit
+                      </button>
+                      <button
+                        className="button-danger"
+                        type="button"
+                        onClick={() => void resetDemo()}
+                        disabled={busy}
+                      >
+                        Reset demo run
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+                <p className="muted">
+                  “Attempt fourth use” sends a controlled simulator boundary probe through the real
+                  verifier.
                 </p>
-              </article>
-              <article>
-                <span className="index">OPERATION</span>
-                <strong>{operation?.state ?? "IDLE"}</strong>
-                <p aria-live="polite" data-testid="command-message">
-                  {busy ? "◌ " : ""}
-                  {message}
+              </section>
+              <section className="panel wallet" aria-labelledby="wallet-title" aria-busy={busy}>
+                <p className="eyebrow">02 / HOLDER WALLET · LOCAL ONLY</p>
+                <h2 id="wallet-title">Your browser's private pass</h2>
+                <p className="muted">
+                  IndexedDB stores the pass, slots, and exact pending request on this browser. These
+                  local slots are not the verifier's counter.
                 </p>
-              </article>
-              <article>
-                <span className="index">LATEST RECEIPT</span>
-                <strong>{receipt ? "COMMITTED" : "Awaiting action"}</strong>
-                <p data-testid="wallet-receipt">
-                  {receipt ? receipt.receiptId : "A stable action receipt will appear here."}
+                <div className="wallet-slots" aria-hidden="true">
+                  {[0, 1, 2].map((slot) => (
+                    <span
+                      className={
+                        !credential
+                          ? "wallet-slot empty"
+                          : slot < credential.nextSlot
+                            ? "wallet-slot used"
+                            : "wallet-slot"
+                      }
+                      key={slot}
+                    >
+                      {credential && slot < credential.nextSlot
+                        ? "✓"
+                        : String(slot + 1).padStart(2, "0")}
+                    </span>
+                  ))}
+                </div>
+                <p
+                  className="protocol-state"
+                  data-tone={tone}
+                  data-testid="operation-status"
+                  aria-live="polite"
+                >
+                  {protocolState}
                 </p>
-              </article>
+                <div className="wallet-grid">
+                  <article>
+                    <span className="index">LOCAL SLOTS</span>
+                    <strong>{credential ? "Credential ready" : "No credential"}</strong>
+                    <p>
+                      {credential
+                        ? `${remaining} of ${credential.policy.maxUses} uses available`
+                        : "Issue a pass to create local slots."}
+                    </p>
+                  </article>
+                  <article>
+                    <span className="index">OPERATION</span>
+                    <strong>{operation?.state ?? "IDLE"}</strong>
+                    <p aria-live="polite" data-testid="command-message">
+                      {busy ? "◌ " : ""}
+                      {message}
+                    </p>
+                  </article>
+                  <article>
+                    <span className="index">LATEST RECEIPT</span>
+                    <strong>{receipt ? "COMMITTED" : "Awaiting action"}</strong>
+                    <p data-testid="wallet-receipt">
+                      {receipt ? receipt.receiptId : "A stable action receipt will appear here."}
+                    </p>
+                  </article>
+                </div>
+              </section>
             </div>
-          </section>
-        </aside>
-        <section className="workspace" aria-label="Server evidence">
+          </div>
+        </section>
+        <section className="workspace" id="evidence" aria-label="Server evidence">
           {config.demoMode ? (
             <EvidencePanels evidence={evidence} events={events} streamState={streamState} />
           ) : (
@@ -433,14 +531,23 @@ function App() {
             </section>
           )}
         </section>
-      </div>
-      <footer>
-        <span>AnonLimit / Opaque crypto simulation</span>
-        <p>
-          Three uses per anonymous pass. Issuance policy determines who can obtain another pass.
-        </p>
+      </main>
+      <footer className="site-footer">
+        <div className="footer-inner">
+          <a className="footer-brand" href="#overview">
+            AnonLimit
+          </a>
+          <p>
+            Three uses per anonymous pass. Issuance policy determines who can obtain another pass.
+          </p>
+          <span>
+            Built to make privacy understandable.
+            <br />
+            Opaque crypto simulation.
+          </span>
+        </div>
       </footer>
-    </main>
+    </div>
   );
 }
 

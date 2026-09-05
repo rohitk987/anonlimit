@@ -27,5 +27,6 @@ if (!Number.isSafeInteger(requested) || requested < 1 || requested > 100) {
   });
   child.on("exit", (code) => {
     process.exitCode = code ?? 1;
+    if (code === 0) process.stdout.write(`GOLDEN_SOAK_PASSED ${requested}/${requested}\n`);
   });
 }
