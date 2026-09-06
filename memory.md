@@ -154,26 +154,26 @@ The full release checklist and limitations are in [docs/phase-10-release.md](doc
 
 ## Verification observed on 2026-09-06
 
-| Check                          | Result                                                                                                                                                    |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node / pnpm                    | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                                                    |
-| Docker / Compose               | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                                                              |
-| Compose runtime                | API, web, worker, Action Simulator, and PostgreSQL healthy; migration 0006 and seed exited 0 after reset                                                  |
-| `pnpm check:phase7`            | Passed formatting, lint, strict type checks, builds, 297 unit, 9 contract, 30 cumulative phase-gate integration, 24 privacy tests, and browser asset scan |
-| `pnpm test:integration`        | 32 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                                                             |
-| `pnpm test:e2e`                | 5 passed: two complete Phase 8 rehearsals plus durable lost-ack recovery, stored resend, and expired-unaccepted proof rebuild                             |
-| `pnpm test:integration:phase9` | 11 passed: synchronized golden race, worker lease/crash matrix, and action-key integrity checks                                                           |
-| Fresh detached checkout        | Frozen install, generated environment, config validation, and empty-volume cold start passed                                                              |
-| `pnpm check:release`           | Passed formatting, lint, types, 309 unit, 9 contract, 39 integration, 24 privacy, build, and 5 browser tests                                              |
-| `pnpm demo:golden:race`        | 10 consecutive focused race runs passed                                                                                                                   |
-| `pnpm demo:golden:soak`        | 100 consecutive synchronized race scenarios passed in 42.46s                                                                                              |
-| `pnpm release:rehearsal`       | Clean rebuild, readiness, full release gate, privacy audit, configured soak, and cleanup passed                                                           |
-| Existing-volume migration      | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                                                    |
-| Retry invariant                | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned                                             |
-| Runtime privacy                | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                                                   |
-| Phase 6 golden scenario        | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                                                  |
-| Phase 7/8 integration          | 33 passed, including sanitized evidence/view, safe SSE cursor, API boundary, and real authenticated fourth-use rejection                                  |
-| Hosted CI                      | Phase 10 workflow includes frozen install, release prerequisites, live checks, browser tests, and ten-run race repetition; hosted execution not observed  |
+| Check                          | Result                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node / pnpm                    | Bundled Node `24.19.0`; pnpm `11.19.0`                                                                                                                        |
+| Docker / Compose               | Engine `29.2.1`; Compose `5.0.2`; responsive                                                                                                                  |
+| Compose runtime                | API, web, worker, Action Simulator, and PostgreSQL healthy; migration 0006 and seed exited 0 after reset                                                      |
+| `pnpm check:phase7`            | Passed formatting, lint, strict type checks, builds, 297 unit, 9 contract, 30 cumulative phase-gate integration, 24 privacy tests, and browser asset scan     |
+| `pnpm test:integration`        | 32 passed, including isolated PostgreSQL scenarios and two live Compose role/readiness checks                                                                 |
+| `pnpm test:e2e`                | 5 passed: two complete Phase 8 rehearsals plus durable lost-ack recovery, stored resend, and expired-unaccepted proof rebuild                                 |
+| `pnpm test:integration:phase9` | 11 passed: synchronized golden race, worker lease/crash matrix, and action-key integrity checks                                                               |
+| Fresh detached checkout        | Frozen install, generated environment, config validation, and empty-volume cold start passed                                                                  |
+| `pnpm check:release`           | Passed formatting, lint, types, 309 unit, 9 contract, 39 integration, 24 privacy, build, and 5 browser tests                                                  |
+| `pnpm demo:golden:race`        | 10 consecutive focused race runs passed                                                                                                                       |
+| `pnpm demo:golden:soak`        | 100 consecutive synchronized race scenarios passed in 42.46s                                                                                                  |
+| `pnpm release:rehearsal`       | Clean rebuild, readiness, full release gate, privacy audit, configured soak, and cleanup passed                                                               |
+| Existing-volume migration      | `0003` and `0004` applied with matching checksums; subsequent migration startup passed                                                                        |
+| Retry invariant                | Before/after retry: uses 1, outbox rows 1, external actions 1, distinct receipts 1; original receipt returned                                                 |
+| Runtime privacy                | Privacy suite passed all 24 source, bundle, schema, serialization, logging, and secret-exclusion checks                                                       |
+| Phase 6 golden scenario        | Passed twice: three durable uses, lost-ack exact retry, authenticated slot-3 rejection, and scoped reset                                                      |
+| Phase 7/8 integration          | 33 passed, including sanitized evidence/view, safe SSE cursor, API boundary, and real authenticated fourth-use rejection                                      |
+| Hosted CI                      | Passed at `39c7389` in run `34020903971`; bootstrap, quality gates, Docker startup, live checks, privacy, browser tests, and cleanup succeeded; soak skipped. |
 
 The immutable verifier migration digests in the persistent database are:
 
@@ -267,10 +267,21 @@ Checks observed for this extension:
 - `pnpm format:check` still reports only the pre-existing untracked `apps/free-slots/src/quota-store.ts` formatting issue. No soak test was run, per user instruction.
 - Docker Compose services remain healthy; `http://localhost:5173` serves the rebuilt UI and `/v1/demo/insights` responds with local `rules-v1` analysis and `ai: DISABLED` under the current configuration.
 
+## GitHub Actions bootstrap repair — 2026-09-06
+
+- Confirmed the reported failure in hosted run `34012662156` at revision `95d45d2`: Node setup failed before pnpm installation, and unconditional Compose cleanup failed after environment generation was skipped.
+- `.github/workflows/ci.yml` disables automatic package-manager caching while installing Node.js 24, then installs the pnpm version pinned in `package.json`. Compose cleanup requires successful configuration validation and still runs after a later build/startup/test failure.
+- The ten-scenario soak is now explicitly opt-in with the manual `workflow_dispatch` input `run_soak`, defaulting to false. Pushes and pull requests skip the soak, honoring the user's instruction. Normal unit, integration, concurrency, privacy, and browser gates remain enabled.
+- `docs/phase-10-release.md` documents setup order, cleanup behavior, and manual soak selection. Revision `355b052` fixed bootstrap: hosted run `34020518954` passed Node/pnpm setup, frozen install, the cumulative Phase 9 gate, configuration validation, and the Docker build. It then exposed an API cold-start failure; guarded cleanup succeeded and the soak was skipped.
+- Reproduced the issuer-file access problem in an isolated Linux container with synthetic data: a `0600` file owned by UID 1001 is unreadable to runtime UID 1000; changing its owner restores access without widening permissions. Revision `39c7389` determines the built image's runtime UID, assigns only the two generated issuer files to it, and performs a content-free readability check before Compose startup. `docs/getting-started.md` explains the Linux repair and host ownership implications.
+- Local validation passed: checksum-verified actionlint `1.7.12`, scoped Prettier, `git diff --check`, and the isolated Linux permission reproduction.
+- [Hosted run `34020903971`](https://github.com/rohitk987/anonlimit/actions/runs/34020903971) passed at fix revision `39c7389`: Node/pnpm bootstrap, frozen install, cumulative Phase 9 quality gate, Docker build, issuer readability preflight, Compose cold start, API/web readiness, live role checks, boundary integration, privacy audit, Chromium installation, browser tests, and cleanup. The optional soak step was skipped. This continuity update changes only documentation after that successful run.
+- The pre-existing local free-slots work and lockfile edits remain separate. No soak was requested or run for this repair.
+
 ## Next step
 
 Maintain the public release baseline. Future changes must rerun `pnpm check:release` and the privacy
-audit; use the concurrency soak when protocol, persistence, or runtime packaging changes. AI commentary
+audit. The concurrency soak remains opt-in and must not be run without a new user request. AI commentary
 requires an operator-supplied server key and model; no live paid model call has been made.
 
 ## Recent milestones
