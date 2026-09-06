@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type Presentation, type ProtocolEvent } from "@anonlimit/contracts";
+import { insightsReportSchema, type Presentation, type ProtocolEvent } from "@anonlimit/contracts";
+import { assertNoForbiddenData } from "@anonlimit/testing";
 import type { AuditAdapter } from "@anonlimit/crypto/audit";
+import type { AiNarrator } from "../../apps/api/src/modules/insights/ai-narrator.js";
 import { computeScopeHash, type Receipt } from "@anonlimit/domain";
 import {
   createEvidenceController,
@@ -156,7 +158,7 @@ const workingAudit: AuditAdapter = {
   }),
 };
 
-async function fixture(adapter: AuditAdapter = workingAudit) {
+async function fixture(adapter: AuditAdapter = workingAudit, aiNarrator?: AiNarrator) {
   const source = snapshot();
   const scopeHash = await computeScopeHash(policy, async (value) => digest(value));
   let data: VerifierEvidenceSnapshot = {
@@ -168,6 +170,7 @@ async function fixture(adapter: AuditAdapter = workingAudit) {
   };
   const { presentations, challenges } = auditPresentations(data);
   const controller = createEvidenceController({
+    ...(aiNarrator ? { aiNarrator } : {}),
     repository: {
       getEvidenceSnapshot: async () => data,
       getChallenge: async (challengeId) => challenges.get(challengeId) ?? null,
@@ -212,6 +215,60 @@ async function fixture(adapter: AuditAdapter = workingAudit) {
 }
 
 describe("Phase 7 evidence runtime", () => {
+  it("automatically summarizes the same evidence, without extra protocol mutations or identifiers", async () => {
+    const test = await fixture();
+    const partial = await test.controller.getInsights();
+    expect(partial.summary.status).toBe("INCOMPLETE");
+    await test.controller.runLinkability({ presentations: test.presentations }, TRACE_ID);
+    const before = JSON.stringify(test.data);
+    const report = insightsReportSchema.parse(await test.controller.getInsights());
+    expect(report.summary.status).toBe("PASS");
+    expect(report.summary.counts.committedUses).toBe(3);
+    expect(report.abuse.counters).toMatchObject({
+      attempts: 5,
+      accepted: 3,
+      retries: 1,
+      overLimit: 1,
+    });
+    expect(report.abuse.level).toBe("QUIET");
+    expect(report.ai.status).toBe("DISABLED");
+    expect(JSON.stringify(test.data)).toBe(before);
+    assertNoForbiddenData(report, {
+      markers: test.presentations.flatMap((item) => [
+        item.nullifier,
+        item.opaqueProof,
+        item.operationId,
+        item.challengeId,
+      ]),
+    });
+    expect(JSON.stringify(report)).not.toMatch(
+      /traceId|maskedUseRef|receiptId|actionKey|intentDigest/
+    );
+    // Another server-owned run cannot inherit this run's completed audit or events.
+    test.setData({
+      ...test.data,
+      demoRunId: "70000000-0000-4000-8000-000000000002",
+      uses: [],
+      outboxUseIds: [],
+      events: [],
+      credentialIssuances: 0,
+    });
+    const reset = await test.controller.getInsights();
+    expect(reset.summary.status).not.toBe("PASS");
+    expect(reset.abuse.level).toBe("NO_ACTIVITY");
+  });
+
+  it("keeps audit facts available if the optional AI adapter fails", async () => {
+    const test = await fixture(workingAudit, {
+      explain: async () => {
+        throw new Error("PRIVATE_PROVIDER_ERROR");
+      },
+    });
+    const report = await test.controller.getInsights();
+    expect(report.summary.counts.committedUses).toBe(3);
+    expect(report.ai).toEqual({ status: "UNAVAILABLE", commentary: null });
+    expect(JSON.stringify(report)).not.toContain("PRIVATE_PROVIDER_ERROR");
+  });
   it("reports backend measurements and keeps an unavailable audit explicitly incomplete", async () => {
     const data = snapshot();
     const controller = createEvidenceController({

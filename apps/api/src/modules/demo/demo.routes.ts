@@ -3,6 +3,7 @@ import {
   demoDropAckRequestSchema,
   demoLinkabilityRequestSchema,
   demoResetRequestSchema,
+  emptyRequestSchema,
 } from "@anonlimit/contracts";
 import { serializePublicError } from "@anonlimit/observability";
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -61,6 +62,12 @@ export function registerDemoRoutes(
   }
 
   if (evidenceController) {
+    app.get("/v1/demo/insights", async (request, reply) => {
+      if (!emptyRequestSchema.safeParse(request.query).success)
+        throw new ProtocolPublicError("BAD_REQUEST");
+      reply.header("Cache-Control", "no-store");
+      return evidenceController.getInsights();
+    });
     app.get("/v1/demo/evidence", async (_request, reply) => {
       reply.header("Cache-Control", "no-store");
       return evidenceController.getEvidence();

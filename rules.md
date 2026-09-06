@@ -1,5 +1,7 @@
 # AnonLimit Repository Rules
 
+User-authorized extension (2026-09-06): [automated insights](docs/automated-insights.md) may derive run-wide signals from existing safe events and optionally send explicitly allowlisted aggregate counts/statuses to an AI provider when configured by the operator. This permits no raw telemetry export, identity collection, fingerprinting, proof export, automated blocking, or changes to the acceptance protocol. Rules-based results and AI prose must be distinguished.
+
 ## Non-Negotiable Engineering, Privacy, and Delivery Contract
 
 This file governs every human- or agent-authored change in this repository.

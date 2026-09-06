@@ -4,6 +4,7 @@ import {
   demoResetResponseSchema,
   demoLinkabilityRequestSchema,
   evidenceReportSchema,
+  insightsReportSchema,
   linkabilityReportSchema,
   issuanceResponseSchema,
   policySchema,
@@ -14,6 +15,7 @@ import {
   type DemoFaultResponse,
   type DemoResetResponse,
   type EvidenceReport,
+  type InsightsReport,
   type LinkabilityReport,
   type IssuanceResponse,
   type Policy,
@@ -41,6 +43,26 @@ export interface ApiClient {
   runLinkabilityTest(presentations: Presentation[]): Promise<LinkabilityReport>;
   eventStreamUrl(after?: number): string;
   attemptFourthUse(): Promise<void>;
+}
+
+export interface InsightsClient {
+  getInsights(signal?: AbortSignal): Promise<InsightsReport>;
+}
+
+/** Read-only aggregate analysis; no wallet or presentation material is sent. */
+export function createInsightsClient(baseUrl: string): InsightsClient {
+  return {
+    async getInsights(signal) {
+      const timeout = AbortSignal.timeout(10_000);
+      const response = await fetch(baseUrl + "/v1/demo/insights", {
+        credentials: "omit",
+        cache: "no-store",
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) throw new ApiResponseError("INSIGHTS_UNAVAILABLE", response.status);
+      return insightsReportSchema.parse(await response.json());
+    },
+  };
 }
 
 export class ApiTransportError extends Error {

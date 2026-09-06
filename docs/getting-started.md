@@ -55,13 +55,13 @@ For active development, `pnpm dev` builds and runs the Compose stack in the fore
 
 The Demo Lab uses real protocol requests and backend-derived evidence. Follow this sequence:
 
-1. Select **Reset demo run**, then **Issue anonymous pass**.
-2. Select **Use next slot** and wait for the first committed receipt.
-3. Select **Drop next acknowledgement**, then **Use next slot**. The action commits while the browser keeps an unknown outcome.
-4. Refresh the page if you want to demonstrate recovery, then select **Retry last request**. The exact stored request recovers the original receipt with zero additional use or action.
-5. Select **Use next slot** for the third accepted use.
-6. Select **Attempt fourth use**. The authenticated simulator probe must be rejected without changing the committed counts.
-7. Select **Run privacy audit** and inspect the verifier evidence, safe event trace, invariant checks, and linkability matrix.
+1. Select **Reset evaluation**, then **Issue a 3-view anonymous pass**.
+2. Select **View next article** and wait for the first committed receipt.
+3. Select **Simulate a lost response**, then **View next article**. The action commits while the browser keeps an unknown outcome.
+4. Refresh the page if you want to demonstrate recovery, then select **Retry the same request**. The exact stored request recovers the original receipt with zero additional use or action.
+5. Select **View next article** for the third accepted use.
+6. Select **Prove the fourth view is blocked**. The authenticated simulator probe must be rejected without changing the committed counts.
+7. Select **Run the privacy audit** and inspect the verifier evidence, safe event trace, invariant checks, and linkability matrix.
 
 The wallet card shows browser-local state from IndexedDB. The evidence panels show the server's authoritative, sanitized view. A full presentation script is in [demo-script.md](demo-script.md).
 
@@ -73,7 +73,7 @@ Stop the containers when you finish:
 docker compose down --remove-orphans
 ```
 
-This preserves the named PostgreSQL volume. Use **Reset demo run** in the interface, or run `pnpm demo:reset`, to clear only the active demonstration run through the server-owned reset flow.
+This preserves the named PostgreSQL volume. Use **Reset evaluation** in the interface, or run `pnpm demo:reset`, to clear only the active demonstration run through the server-owned reset flow.
 
 ## Verify the workspace
 
@@ -123,6 +123,6 @@ CI uses 10 repetitions. The default local rehearsal uses the 100-run release soa
 - **Docker cannot connect:** start Docker and confirm `docker version` shows a responsive server.
 - **A service is unhealthy:** run `docker compose ps -a` and inspect the relevant sanitized logs with `docker compose logs api worker web action-simulator`.
 - **The browser reports the API unavailable:** open the readiness endpoint, confirm both ports are free, and use the `localhost` URL shown above.
-- **The wallet belongs to an earlier run:** select **Reset demo run**. The browser clears its local wallet only after the server reset succeeds.
+- **The wallet belongs to an earlier run:** select **Reset evaluation**. The browser clears its local wallet only after the server reset succeeds.
 - **Browser tests cannot launch:** rerun `pnpm exec playwright install chromium`.
 - **Install or checks use the wrong runtime:** switch to Node 24 and pnpm 11.19.0, then rerun the command.

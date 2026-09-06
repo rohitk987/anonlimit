@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
-import { evidenceReportSchema } from "@anonlimit/contracts";
+import { evidenceReportSchema, insightsReportSchema } from "@anonlimit/contracts";
 import { assertNoForbiddenData } from "@anonlimit/testing";
 
 const apiBase = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://localhost:4000";
@@ -58,7 +58,7 @@ for (const rehearsal of [1, 2]) {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
     await expect(page.getByTestId("connection")).toHaveText("API and database connected");
-    await page.getByRole("button", { name: "Reset demo run" }).click();
+    await page.getByTestId("reset-demo").click();
     await expect(page.getByTestId("metric-committedUses")).toHaveText("0");
     await expect(page.getByTestId("metric-externalActions")).toHaveText("0");
     expect(databaseEvidence()).toMatchObject({ uses: 0, actions: 0, outbox: 0, receipts: [] });
@@ -66,12 +66,12 @@ for (const rehearsal of [1, 2]) {
     await expect(page.getByTestId("assumptions")).toBeVisible();
 
     // Drive issuance with a real keyboard focus and activation.
-    const issue = page.getByRole("button", { name: "Issue anonymous pass" });
+    const issue = page.getByTestId("issue-pass");
     await issue.focus();
     await expect(issue).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByText("3 of 3 uses available", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Use next slot" }).click();
+    await page.getByTestId("use-next-slot").click();
     await expect(page.getByTestId("operation-status")).toHaveText(
       "NEW ACCEPTANCE · RECEIPT STORED"
     );
@@ -86,11 +86,11 @@ for (const rehearsal of [1, 2]) {
       )
         wire.push(outgoing.postData() ?? "");
     });
-    await page.getByRole("button", { name: "Drop next acknowledgement" }).click();
+    await page.getByTestId("drop-ack").click();
     await expect(page.getByTestId("operation-status")).toHaveText(
       "FAULT ARMED · NEXT ACKNOWLEDGEMENT"
     );
-    await page.getByRole("button", { name: "Use next slot" }).click();
+    await page.getByTestId("use-next-slot").click();
     await expect(page.getByTestId("operation-status")).toContainText("OUTCOME UNKNOWN", {
       timeout: 20_000,
     });
@@ -101,8 +101,8 @@ for (const rehearsal of [1, 2]) {
     await page.reload();
     await expect(page.getByTestId("operation-status")).toContainText("OUTCOME UNKNOWN");
     await expect(page.getByText("2 of 3 uses available", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use next slot" })).toBeDisabled();
-    await page.getByRole("button", { name: "Retry last request" }).click();
+    await expect(page.getByTestId("use-next-slot")).toBeDisabled();
+    await page.getByTestId("retry-request").click();
     await expect(page.getByTestId("operation-status")).toHaveText(
       "RETRY MATCHED · RECEIPT RECOVERED"
     );
@@ -114,23 +114,35 @@ for (const rehearsal of [1, 2]) {
     await expect(page.getByTestId("metric-retryUsageDelta")).toHaveText("0");
     await expect(page.getByTestId("metric-retryActionDelta")).toHaveText("0");
 
-    await page.getByRole("button", { name: "Use next slot" }).click();
+    await page.getByTestId("use-next-slot").click();
     await expect(page.getByText("0 of 3 uses available", { exact: true })).toBeVisible();
     await expect(page.getByTestId("metric-externalActions")).toHaveText("3");
     const beforeRejection = databaseEvidence();
     expect(beforeRejection).toMatchObject({ uses: 3, actions: 3, outbox: 3 });
-    await page.getByRole("button", { name: "Attempt fourth use" }).click();
+    await page.getByTestId("fourth-use").click();
     await expect(page.getByTestId("operation-status")).toHaveText(
       "FOURTH USE REJECTED · NO ACCEPTANCE"
     );
     await expect(page.getByTestId("operation-status")).toHaveAttribute("data-tone", "rejection");
     expect(databaseEvidence()).toEqual(beforeRejection);
-    await page.getByRole("button", { name: "Run privacy audit" }).click();
+    await page.getByTestId("privacy-audit").click();
     await expect(page.getByTestId("evidence-overall")).toContainText("PASS", { timeout: 20_000 });
     const response = await request.get(`${apiBase}/v1/demo/evidence`);
     expect(response.ok()).toBe(true);
     const evidence = evidenceReportSchema.parse(await response.json());
     expect(evidence.overall).toBe("PASS");
+    await expect(page.getByTestId("insights-summary-status")).toHaveText("Pass", {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("insights-abuse")).toContainText("No review thresholds reached");
+    const insightsResponse = await request.get(`${apiBase}/v1/demo/insights`);
+    expect(insightsResponse.headers()["cache-control"]).toBe("no-store");
+    const insights = insightsReportSchema.parse(await insightsResponse.json());
+    expect(insights.summary.status).toBe("PASS");
+    expect(insights.summary.counts).toEqual(evidence.counts);
+    expect(insights.abuse.signals).toEqual([]);
+    expect(insights.advisoryOnly).toBe(true);
+    expect(databaseEvidence()).toEqual(beforeRejection);
     expect(Object.values(evidence.checks).every((check) => check.status === "PASS")).toBe(true);
     expect(evidence.counts).toMatchObject({
       committedUses: 3,
@@ -149,7 +161,7 @@ for (const rehearsal of [1, 2]) {
       .map((body) => JSON.parse(body) as { opaqueProof: string; nullifier: string })
       .flatMap((body) => [body.opaqueProof, body.nullifier]);
     assertNoForbiddenData(
-      [evidence, beforeRejection.safePayloads, beforeRejection.safeRows, safeEvents],
+      [evidence, insights, beforeRejection.safePayloads, beforeRejection.safeRows, safeEvents],
       { markers: privateMarkers }
     );
     await expect(page.getByTestId("protocol-trace")).toContainText("Retry");
@@ -168,6 +180,24 @@ for (const rehearsal of [1, 2]) {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
     ).toBe(true);
+    if (rehearsal === 1) {
+      await page.route("**/v1/demo/insights", (route) =>
+        route.fulfill({ status: 503, body: "{}" })
+      );
+      await expect(page.getByTestId("insights-status")).toHaveText("UNAVAILABLE", {
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("insights-summary")).toHaveCount(0);
+      await page.unroute("**/v1/demo/insights");
+      await expect(page.getByTestId("insights-summary-status")).toHaveText("Pass", {
+        timeout: 15_000,
+      });
+      await page.getByTestId("reset-demo").click();
+      await expect(page.getByTestId("metric-committedUses")).toHaveText("0");
+      await expect(page.getByTestId("insights-summary-status")).not.toHaveText("Pass");
+      await expect(page.getByTestId("insights-summary")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("insights-abuse")).toContainText("No activity");
+    }
   });
 }
 
@@ -177,15 +207,15 @@ test("Phase 5 preserves and exactly retries a use whose acknowledgement is lost"
   await page.goto("/");
   await expect(page).toHaveTitle("AnonLimit — Demo Lab");
   await expect(
-    page.getByRole("heading", { name: "Three uses. Zero identity.", exact: true })
+    page.getByRole("heading", { name: "Follow the proof, one step at a time.", exact: true })
   ).toBeVisible();
   await expect(page.getByRole("status")).toHaveText("API and database connected");
 
-  await page.getByRole("button", { name: "Issue anonymous pass" }).click();
+  await page.getByTestId("issue-pass").click();
   await expect(page.getByText("Credential ready", { exact: true })).toBeVisible();
   await expect(page.getByText("3 of 3 uses available", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Use next slot" }).click();
+  await page.getByTestId("use-next-slot").click();
   await expect(page.getByText("COMMITTED", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("NEW ACCEPTANCE · RECEIPT STORED", { exact: true })).toBeVisible();
   await expect(page.getByText("2 of 3 uses available", { exact: true })).toBeVisible();
@@ -203,16 +233,16 @@ test("Phase 5 preserves and exactly retries a use whose acknowledgement is lost"
     }
   });
 
-  await page.getByRole("button", { name: "Drop next acknowledgement" }).click();
+  await page.getByTestId("drop-ack").click();
   await expect(page.getByText("FAULT ARMED · NEXT ACKNOWLEDGEMENT", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Use next slot" }).click();
+  await page.getByTestId("use-next-slot").click();
   await expect(
     page.getByText("ACKNOWLEDGEMENT DROPPED · OUTCOME UNKNOWN", { exact: true })
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("OUTCOME_UNKNOWN", { exact: true })).toBeVisible();
   await expect(page.getByText("2 of 3 uses available", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Use next slot" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Retry last request" })).toBeEnabled();
+  await expect(page.getByTestId("use-next-slot")).toBeDisabled();
+  await expect(page.getByTestId("retry-request")).toBeEnabled();
   expect(presentationRequests).toHaveLength(1);
 
   await page.reload();
@@ -221,9 +251,9 @@ test("Phase 5 preserves and exactly retries a use whose acknowledgement is lost"
   ).toBeVisible();
   await expect(page.getByText("OUTCOME_UNKNOWN", { exact: true })).toBeVisible();
   await expect(page.getByText("2 of 3 uses available", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retry last request" })).toBeEnabled();
+  await expect(page.getByTestId("retry-request")).toBeEnabled();
 
-  await page.getByRole("button", { name: "Retry last request" }).click();
+  await page.getByTestId("retry-request").click();
   await expect(page.getByText("RETRY MATCHED · RECEIPT RECOVERED", { exact: true })).toBeVisible({
     timeout: 15_000,
   });
@@ -239,7 +269,7 @@ test("Phase 5 preserves and exactly retries a use whose acknowledgement is lost"
 test("an exact resend can be the first request accepted by the verifier", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("status")).toHaveText("API and database connected");
-  await page.getByRole("button", { name: "Issue anonymous pass" }).click();
+  await page.getByTestId("issue-pass").click();
   await expect(page.getByText("3 of 3 uses available", { exact: true })).toBeVisible();
 
   const presentationRequests: { readonly body: string; readonly idempotencyKey: string }[] = [];
@@ -253,11 +283,11 @@ test("an exact resend can be the first request accepted by the verifier", async 
     else await route.continue();
   });
 
-  await page.getByRole("button", { name: "Use next slot" }).click();
+  await page.getByTestId("use-next-slot").click();
   await expect(page.getByText("RESPONSE LOST · OUTCOME UNKNOWN", { exact: true })).toBeVisible();
   await expect(page.getByText("3 of 3 uses available", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Retry last request" }).click();
+  await page.getByTestId("retry-request").click();
   await expect(
     page.getByText("STORED REQUEST ACCEPTED · RECEIPT STORED", { exact: true })
   ).toBeVisible({ timeout: 15_000 });
@@ -271,7 +301,7 @@ test("an unaccepted expired request rebuilds a proof for the same reserved slot"
 }) => {
   await page.goto("/");
   await expect(page.getByRole("status")).toHaveText("API and database connected");
-  await page.getByRole("button", { name: "Issue anonymous pass" }).click();
+  await page.getByTestId("issue-pass").click();
 
   const presentationBodies: string[] = [];
   await page.route("**/v1/verifier/presentations", async (route) => {
@@ -300,9 +330,9 @@ test("an unaccepted expired request rebuilds a proof for the same reserved slot"
     await route.continue();
   });
 
-  await page.getByRole("button", { name: "Use next slot" }).click();
+  await page.getByTestId("use-next-slot").click();
   await expect(page.getByText("RESPONSE LOST · OUTCOME UNKNOWN", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Retry last request" }).click();
+  await page.getByTestId("retry-request").click();
   await expect(
     page.getByText("STORED REQUEST ACCEPTED · RECEIPT STORED", { exact: true })
   ).toBeVisible({ timeout: 15_000 });

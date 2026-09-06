@@ -119,6 +119,30 @@ export function parseActionEnv(source: Source) {
 export function getApiEnv() {
   return parseApiEnv(process.env);
 }
+/** Optional server-only AI configuration; local analysis needs no external service. */
+export function parseInsightsAiEnv(source: Source): { apiKey: string; model: string } | undefined {
+  const toggle = parse(
+    z.object({ ANONLIMIT_AI_ENABLED: z.enum(["true", "false"]).default("false") }),
+    source
+  );
+  if (toggle.ANONLIMIT_AI_ENABLED === "false") return undefined;
+  const settings = parse(
+    z.object({
+      OPENAI_API_KEY: z
+        .string()
+        .trim()
+        .min(20)
+        .max(512)
+        .regex(/^[A-Za-z0-9_-]+$/),
+      ANONLIMIT_AI_MODEL: identifier,
+    }),
+    source
+  );
+  return { apiKey: settings.OPENAI_API_KEY, model: settings.ANONLIMIT_AI_MODEL };
+}
+export function getInsightsAiEnv() {
+  return parseInsightsAiEnv(process.env);
+}
 export function getWorkerEnv() {
   return parseWorkerEnv(process.env);
 }

@@ -3,9 +3,12 @@ import {
   challengeResponseSchema,
   demoLinkabilityRequestSchema,
   evidenceReportSchema,
+  insightsReportSchema,
+  aiNarrationSchema,
   linkabilityReportSchema,
   protocolVersionSchema,
   type EvidenceReport,
+  type InsightsReport,
   type LinkabilityReport,
   type Policy,
   type Presentation,
@@ -21,6 +24,8 @@ import type { AuditAdapter } from "@anonlimit/crypto/audit";
 import type { ProtocolEventInput, VerifierEvidenceSnapshot } from "@anonlimit/db/verifier";
 import { ProtocolPublicError } from "../protocol/protocol-service.js";
 import type { ActionSimulatorEvidenceClient } from "../internal/action-simulator-client.js";
+import { analyzeInsights } from "../insights/analyze.js";
+import type { AiNarrator } from "../insights/ai-narrator.js";
 
 const MASKED_REF_LENGTH = 12;
 
@@ -84,10 +89,12 @@ interface StoredAudit {
 
 export interface EvidenceController {
   getEvidence(): Promise<EvidenceReport>;
+  getInsights(): Promise<InsightsReport>;
   runLinkability(input: unknown, traceId: string): Promise<LinkabilityReport>;
 }
 
 export interface EvidenceControllerOptions {
+  readonly aiNarrator?: AiNarrator;
   readonly repository: EvidenceRepository;
   readonly actionClient: ActionSimulatorEvidenceClient;
   readonly auditAdapter?: AuditAdapter;
@@ -427,8 +434,7 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
     return publicLinkability(audit);
   }
 
-  async function getEvidence(): Promise<EvidenceReport> {
-    const snapshot = await snapshotOrDisabled();
+  async function evidenceFromSnapshot(snapshot: VerifierEvidenceSnapshot): Promise<EvidenceReport> {
     const actionEvidence = await options.actionClient.getEvidence(snapshot.demoRunId);
     const mutations = mutationEvidence(
       snapshot,
@@ -479,7 +485,37 @@ export function createEvidenceController(options: EvidenceControllerOptions): Ev
     });
   }
 
-  return Object.freeze({ getEvidence, runLinkability });
+  async function getEvidence(): Promise<EvidenceReport> {
+    return evidenceFromSnapshot(await snapshotOrDisabled());
+  }
+
+  async function getInsights(): Promise<InsightsReport> {
+    // Both the evidence and event analysis use the same repeatable-read verifier snapshot.
+    const snapshot = await snapshotOrDisabled();
+    const evidence = await evidenceFromSnapshot(snapshot);
+    const analysis = analyzeInsights(evidence, snapshot.events);
+    const report = {
+      protocolVersion: evidence.protocolVersion,
+      demoRunId: evidence.demoRunId,
+      generatedAt: evidence.generatedAt,
+      analysisVersion: "rules-v1" as const,
+      scope: "ACTIVE_DEMO_RUN" as const,
+      advisoryOnly: true as const,
+      summary: analysis.summary,
+      abuse: analysis.abuse,
+    };
+    let ai: InsightsReport["ai"] = { status: "DISABLED", commentary: null };
+    if (options.aiNarrator) {
+      try {
+        ai = aiNarrationSchema.parse(await options.aiNarrator.explain(report));
+      } catch {
+        ai = { status: "UNAVAILABLE", commentary: null };
+      }
+    }
+    return insightsReportSchema.parse({ ...report, ai });
+  }
+
+  return Object.freeze({ getEvidence, getInsights, runLinkability });
 }
 
 function uuidSchemaParse(randomUuid: () => string): string {

@@ -4,12 +4,12 @@ The current interface is an original AnonLimit design. It uses an Apple-inspired
 
 ## Design intent
 
-The page has two jobs. It first explains the product in plain language, then gives the visitor a working lab where every claim can be checked against live backend evidence. The visual hierarchy should feel calm and editorial while protocol state stays explicit and testable.
+The page has two jobs. It first explains the product in plain language, then gives the visitor a working lab where every claim can be checked against live backend evidence. The opening is intentionally compact so an evaluator reaches the working controls quickly. The visual hierarchy should feel calm and editorial while protocol state stays explicit and testable.
 
 Five principles guide the interface:
 
 1. **Lead with the promise.** “Limit the use. Leave the person unknown.” establishes the outcome before implementation details.
-2. **Reveal complexity in sequence.** The hero, guided controls, browser wallet, verifier evidence, trace, records, invariants, audit, and assumptions move from concept to proof.
+2. **Reveal complexity in sequence.** The compact opening claim card, live next-action guide, browser wallet, verifier evidence, trace, records, invariants, audit, and assumptions move from concept to proof.
 3. **Keep authority visible.** Browser-local slots explain holder state; backend panels separately identify the authoritative verifier and Action Simulator evidence.
 4. **Say what happened.** Status text names acceptance, uncertainty, retry, receipt recovery, final failure, and rejection. Color supports that text but never replaces it.
 5. **State the boundary.** The assumptions panel and footer keep the simulated-cryptography limitation in the primary experience.
@@ -19,9 +19,8 @@ Five principles guide the interface:
 | Region                 | Purpose                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------ |
 | Global navigation      | Keeps AnonLimit identity and anchors to the Demo Lab, Evidence, and Assumptions sections.              |
-| Hero                   | Introduces the bounded-use idea and links directly into the experiment and its limitations.            |
-| Conceptual pass        | Turns the three-use allowance into a custom visual object built with HTML and CSS.                     |
-| Guided experiment      | Presents the controls in the intended issue, use, retry, finish, and audit sequence.                   |
+| Opening claim card     | Introduces the three-view scope and the three evaluator claims before the working surface.             |
+| Guided evaluation      | Presents the exact nine-step path, highlights the next required action, and explains each control.     |
 | Holder wallet          | Shows local IndexedDB state, remaining local slots, operation status, and the latest receipt.          |
 | Evidence workspace     | Renders sanitized counts, safe events, masked records, invariant results, and linkability comparisons. |
 | Assumptions and footer | Explain the simulated provider and the per-pass issuance boundary.                                     |
@@ -46,17 +45,18 @@ The UI uses a small semantic palette taken directly from the stylesheet:
 
 Typography uses the local system stack: `-apple-system`, BlinkMacSystemFont, `SF Pro Text`, `SF Pro Display`, `Helvetica Neue`, Arial, then `sans-serif`. These names select fonts already present on the visitor's device; the application downloads no font. Large headings use tight tracking and compact line height, while eyebrow labels use small uppercase text and wider tracking to organize dense evidence.
 
-The content width is capped at 1200px. Major sections use generous vertical padding, panels use an 18px corner radius, and controls use a full pill radius. The conceptual pass and wallet introduce dark surfaces at the two moments where the visitor should think about the credential as a private object.
+The content width is capped at 1200px. Major sections use generous vertical padding, panels use an 18px corner radius, and controls use a full pill radius. The opening claim card and wallet introduce dark surfaces at the two moments where the visitor should think about the credential as a private object.
 
 ## Components and interaction
 
 - **Brand mark:** a custom inline SVG keeps the identity crisp without an external asset request.
-- **Conceptual pass:** a code-native illustration makes the three available slots visible without resembling a real credential.
-- **Primary and secondary actions:** filled blue buttons advance the core flow; outlined pills handle supporting controls; the red outline reserves attention for reset.
+- **Opening claim card:** a compact dark card makes the bounded-use, safe-retry, and privacy claims visible without pushing the working surface below the first viewport.
+- **Primary and secondary actions:** filled blue buttons advance the core flow; supporting controls explain their effect in one sentence; the red outline reserves attention for reset.
+- **Next-action guide:** a live callout and nine-step route tell an evaluator what to press next and why a later action is disabled.
 - **Wallet slots:** numbered circles become green checkmarks as local slots complete. The accompanying text always reports the count.
 - **Protocol state:** a bordered text strip is the canonical interaction status. Neutral, acceptance, unknown, retry, and rejection tones pair with explicit copy.
-- **Evidence cards:** consistent white panels carry metrics, a safe event trace, masked records, invariant results, and the transient linkability audit.
-- **Status results:** symbols and the words `PASS`, `FAIL`, `INCOMPLETE`, or `NOT_RUN` remain available when color cannot be perceived.
+- **Evidence cards:** consistent white panels carry expected-versus-observed claims, metrics, a safe event trace, masked records, invariant results, and the transient linkability audit.
+- **Status results:** symbols and clear words such as `PASS`, `FAIL`, `NEEDS NEXT STEP`, or `NOT RUN YET` remain available when color cannot be perceived.
 
 Buttons disable when their action would conflict with the current wallet state. An unresolved request blocks a new slot until the exact request is retried, and the fourth-use control becomes enabled only after all three local slots are complete. Demo-only controls disappear when demo mode is disabled.
 

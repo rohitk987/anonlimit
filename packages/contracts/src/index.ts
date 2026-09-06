@@ -12,3 +12,4 @@ export * from "./event.contract.js";
 export * from "./evidence.contract.js";
 export * from "./demo.contract.js";
 export * from "./public-field-allowlist.js";
+export * from "./insights.contract.js";

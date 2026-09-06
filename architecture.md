@@ -1,5 +1,7 @@
 # AnonLimit Architecture
 
+The [automated insights extension](docs/automated-insights.md) adds a read-only API analysis module and independently polled UI. Optional external AI receives only allowlisted aggregate numbers and enums; local rules and existing verifier evidence remain authoritative. No additional database tables or identity collection are introduced.
+
 ## Application Flow, System Design, Technical Stack, and Repository Structure
 
 | Field | Decision |

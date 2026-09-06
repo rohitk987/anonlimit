@@ -1,5 +1,7 @@
 # AnonLimit
 
+User-authorized extension (2026-09-06): the demo now includes [automatic audit summaries and aggregate abuse signals](docs/automated-insights.md), plus explicitly configured AI commentary. These consume measured evidence, preserve missing/failing statuses, and never identify holders or decide quota acceptance.
+
 ## Product Requirements Document
 
 | Field | Value |

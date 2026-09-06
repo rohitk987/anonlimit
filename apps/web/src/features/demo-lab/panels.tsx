@@ -29,9 +29,22 @@ const eventCopy: Record<ProtocolEvent["event"], string> = {
 
 function Status({ value }: { readonly value: string }) {
   const icon = value === "PASS" ? "✓" : value === "FAIL" ? "×" : value === "INCOMPLETE" ? "!" : "·";
+  const label =
+    value === "INCOMPLETE" ? "NEEDS NEXT STEP" : value === "NOT_RUN" ? "NOT RUN YET" : value;
   return (
-    <span className={`status status-${value.toLowerCase()}`}>
-      <span aria-hidden="true">{icon}</span> {value}
+    <span
+      className={`status status-${value.toLowerCase()}`}
+      title={
+        value === "PASS"
+          ? "This measured guarantee passed."
+          : value === "FAIL"
+            ? "This measured guarantee failed."
+            : value === "INCOMPLETE"
+              ? "Complete the next guided step before treating this as a result."
+              : "This guarantee has not been tested yet."
+      }
+    >
+      <span aria-hidden="true">{icon}</span> {label}
     </span>
   );
 }
@@ -93,8 +106,8 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
       <section className="panel evidence-hero" aria-labelledby="evidence-title">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">03 / VERIFIER EVIDENCE</p>
-            <h2 id="evidence-title">Trust the records.</h2>
+            <p className="eyebrow">03 / BACKEND RESULTS</p>
+            <h2 id="evidence-title">Verify the three claims.</h2>
           </div>
           <div className="overall">
             <span className="muted">OVERALL</span>
@@ -109,27 +122,27 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
         <div className="metrics">
           <Metric
             id="metric-committedUses"
-            label="Committed uses"
+            label="Accepted views"
             value={evidence.counts.committedUses}
           />
           <Metric
             id="metric-externalActions"
-            label="External actions"
+            label="Committed actions"
             value={evidence.counts.externalActions}
           />
           <Metric
             id="metric-retryUsageDelta"
-            label="Retry use delta"
+            label="Extra views on retry"
             value={evidence.counts.retryUsageDelta}
           />
           <Metric
             id="metric-retryActionDelta"
-            label="Retry action delta"
+            label="Extra actions on retry"
             value={evidence.counts.retryActionDelta}
           />
           <Metric
             id="metric-failedAttemptUses"
-            label="Rejected use delta"
+            label="Views from rejected attempts"
             value={evidence.counts.failedAttemptUses}
           />
           <Metric
@@ -137,6 +150,42 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
             label="Holder identities stored"
             value={evidence.counts.storedHolderIdentities}
           />
+        </div>
+        <div className="proof-claims" aria-label="Measured evaluation claims">
+          <article>
+            <span className="metric-label">BOUND</span>
+            <strong>
+              {evidence.counts.committedUses ?? "—"} / {evidence.declaredLimit}
+            </strong>
+            <p>Accepted views must stop at the declared limit.</p>
+            <Status value={evidence.checks.boundedUse.status} />
+          </article>
+          <article>
+            <span className="metric-label">RETRY COST</span>
+            <strong>{evidence.counts.retryUsageDelta ?? "—"} extra</strong>
+            <p>The same request must add zero uses and actions.</p>
+            <Status value={evidence.checks.retryIdempotency.status} />
+          </article>
+          <article>
+            <span className="metric-label">FOURTH VIEW</span>
+            <strong>
+              {evidence.checks.overLimitRejected.status === "PASS" ? "Blocked" : "Pending"}
+            </strong>
+            <p>The boundary probe must leave the ledger unchanged.</p>
+            <Status value={evidence.checks.overLimitRejected.status} />
+          </article>
+          <article>
+            <span className="metric-label">IDENTITY STORAGE</span>
+            <strong>{evidence.counts.storedHolderIdentities ?? "—"}</strong>
+            <p>The verifier should retain no holder identity.</p>
+            <Status value={evidence.checks.noStableIdentity.status} />
+          </article>
+          <article>
+            <span className="metric-label">LINKABILITY</span>
+            <strong>{evidence.linkability.status === "PASS" ? "Unlinkable" : "Pending"}</strong>
+            <p>Distinct views must not share a stable identity.</p>
+            <Status value={evidence.checks.distinctUseUnlinkability.status} />
+          </article>
         </div>
       </section>
       <section
@@ -187,13 +236,13 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
         <div className="panel-heading">
           <div>
             <p className="eyebrow">05 / SANITIZED RECORDS</p>
-            <h2 id="table-title">Verifier evidence table</h2>
+            <h2 id="table-title">What the verifier retained</h2>
           </div>
           <span className="pill">run {evidence.demoRunId.slice(0, 8)}…</span>
         </div>
         <p className="muted">
-          Per-use references are masked. A nullifier recognizes one allowed use and its retries; it
-          does not identify the holder or connect separate uses.
+          These are the safe records used to enforce one-time acceptance and recover a retry. They
+          contain per-use references, not a holder ID or a credential-wide identity.
         </p>
         <div className="table-wrap">
           <table>
@@ -239,7 +288,7 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
           <div className="panel-heading">
             <div>
               <p className="eyebrow">06 / INVARIANTS</p>
-              <h2 id="invariant-title">Measured guarantees</h2>
+              <h2 id="invariant-title">Guarantees measured by the backend</h2>
             </div>
             <span className="pill">limit {evidence.declaredLimit}</span>
           </div>
@@ -256,7 +305,7 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
           <div className="panel-heading">
             <div>
               <p className="eyebrow">07 / PRIVACY AUDIT</p>
-              <h2 id="linkability-title">Linkability matrix</h2>
+              <h2 id="linkability-title">Which views can be linked?</h2>
             </div>
             <Status value={evidence.linkability.status} />
           </div>
@@ -285,8 +334,9 @@ export function EvidencePanels({ evidence, events, streamState }: EvidencePanels
           </div>
           {evidence.linkability.pairs.length === 0 ? (
             <p className="muted">
-              Complete the scenario, then run the audit to compare every distinct use and its exact
-              retry.
+              Complete the scenario, then run the audit. Different valid views should be
+              <strong> UNLINKABLE</strong>; the exact retry should be recognized as
+              <strong> SAME_USE</strong>.
             </p>
           ) : null}
         </section>
@@ -307,14 +357,14 @@ function AssumptionsPanel() {
       <div className="panel-heading">
         <div>
           <p className="eyebrow">08 / ASSUMPTIONS</p>
-          <h2 id="assumption-title">Privacy has a clear boundary.</h2>
+          <h2 id="assumption-title">What this demo does—and does not—claim.</h2>
         </div>
         <span className="pill">SIMULATED CRYPTO</span>
       </div>
       <p>
-        These results assume the opaque issuer, holder, verifier, and audit adapters preserve their
-        stated cryptographic properties. This project demonstrates protocol behavior and durable
-        recovery; it does not provide production cryptography or prove that an issuer cannot
+        The verifier proves three uses per issued anonymous pass, safe recovery after a lost
+        response, and unlinkability under the supplied adapters. It does not provide production
+        cryptography, stop someone from obtaining another pass, or prove that an issuer cannot
         recognize a holder.
       </p>
       <div className="assumption-grid">

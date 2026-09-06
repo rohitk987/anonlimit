@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-06 (Asia/Calcutta).
 Project root: repository root.
-Current milestone: **Phases 0–10 complete; G10 passed; Apple-inspired frontend and public release complete.**
-Git branch: `codex/apple-frontend-public-release`. Phase 6 is committed at `08ce904` (`feat: complete phase 6 bound reset`); Phase 7 implementation is committed at `ec391b6` (`feat: complete phase 7 evidence privacy`); Phase 10 release work is committed in the prior release HEAD (`feat: complete phase 10 release rehearsal`). Check `git status` and `git log -1` for the current revision.
+Current milestone: **Phases 0–10 complete; G10 passed; Apple-inspired frontend and public release complete; evaluation-clarity UI pass and automated-insights extension complete.**
+Git branch: `codex/persistent-free-slots`. Earlier phase commits remain in history; check `git status` and `git log -1` for the current revision. The worktree also contains pre-existing `apps/free-slots/` and `tests/unit/free-slots-quota.test.ts` changes; keep them separate from AnonLimit insights work.
 
 This file is the project handoff for future AI sessions. [AGENTS.md](AGENTS.md) requires reading and maintaining it. Current files, Git state, and runtime checks take precedence over historical observations.
 
@@ -43,7 +43,9 @@ Codex is the integration owner. Responsibilities and dependencies are in [the ta
 
 - The public repository is `https://github.com/rohitk987/anonlimit`.
 - The frontend now follows the supplied Apple-inspired visual direction using original AnonLimit branding, a code-native conceptual pass, system typography, parchment and black surfaces, blue pill actions, responsive layouts, visible focus, and reduced-motion support.
-- The existing protocol controls, IndexedDB wallet behavior, backend-derived evidence, status copy, accessibility labels, and end-to-end test selectors remain intact.
+- The evaluation-clarity pass keeps that visual direction while shortening the opening, stating the three-view-per-pass scope, adding a live next-action callout and nine-step evaluator route, translating controls into outcome language, and pairing the backend metrics with expected-versus-observed claim cards.
+- Stable `data-testid` hooks keep the browser rehearsal resilient while visible labels remain readable for evaluators. A plain-language result card sits alongside the technical protocol state so uncertainty, retry recovery, and fourth-view rejection are immediately understandable.
+- Protocol behavior, IndexedDB wallet behavior, backend-derived evidence, accessibility labels, and end-to-end coverage remain intact; the browser rehearsal now targets stable control test IDs while visible labels are evaluator-facing.
 - Public documentation now includes a concise README, clean-checkout guide, contribution guide, frontend design contract, threat model, and phase/release records.
 - The public-release rehearsal passed formatting, lint, type checks, 309 unit tests, 9 contract tests, 39 integration tests, 24 privacy tests, the production build, 5 Chromium tests, the browser privacy scan, and a configured 10-run concurrency repetition. The rehearsal cleaned up containers and preserved the PostgreSQL volume.
 
@@ -221,10 +223,55 @@ Only web 5173 and API 4000 are published to `127.0.0.1`. Use [localhost:5173](ht
 
 TypeScript 6.0.3 and Vitest 4.1.11 are deliberate compatibility pins. Keep strict declaration checks enabled. Double-quoted pnpm workspace filters are required on Windows. Vite preview uses `--configLoader native` for the non-root container user. The two Zod/Rollup annotation messages are upstream build warnings; the build passes.
 
+## Evaluation-friendly UI pass — 2026-09-06
+
+Changed the web Demo Lab without changing protocol behavior:
+
+- `apps/web/src/main.tsx` now opens with a compact evaluation summary, states the three-view-per-pass scope, highlights the next required action, shows the complete nine-step path, adds plain-language result copy, and gives every control a short explanation.
+- `apps/web/src/features/demo-lab/panels.tsx` now labels backend evidence as claim verification, adds expected-versus-observed proof cards, explains the sanitized records, and renders incomplete statuses as actionable guidance.
+- `apps/web/src/style.css` adds the evaluation-first layout, responsive step grid, callout styling, and proof scoreboard while preserving the Apple-inspired palette and accessibility focus states.
+- `tests/e2e/golden-demo.spec.ts` uses stable control test IDs so evaluator-facing button wording can remain readable.
+- `docs/demo-script.md`, `docs/getting-started.md`, `docs/phase-5-safe-retry.md`, and `docs/frontend-design.md` now match the visible labels and guided route.
+
+Checks observed for this pass:
+
+- `pnpm --filter @anonlimit/web build` passed.
+- `pnpm --filter @anonlimit/web typecheck` passed.
+- `pnpm exec tsc -p tsconfig.tooling.json --noEmit` passed.
+- `pnpm lint` passed.
+- Scoped Prettier check for all changed frontend, test, and documentation files passed.
+- `pnpm test:unit` passed: 17 files, 316 tests.
+- `git diff --check` passed.
+- The full repository `pnpm format:check` remains blocked by the pre-existing untracked `apps/free-slots/src/quota-store.ts` formatting warning; that file was not part of this UI change.
+- Live Playwright verification was not run because Docker Desktop's Linux engine pipe was unavailable (`docker compose ps` could not connect). No soak test was run.
+
+## Automated insights extension — 2026-09-06
+
+Added the user-requested automatic audit summary and privacy-safe aggregate abuse signals:
+
+- `GET /v1/demo/insights` reads the same server-owned verifier snapshot and independent Action Simulator evidence as `GET /v1/demo/evidence`. It accepts no client-selected run, is demo-only, returns `no-store`, and exposes strict `InsightsReport` contracts.
+- `apps/api/src/modules/insights/analyze.ts` derives five factual summary findings and a rolling 60-second, run-scoped activity report. It counts persisted decision events once per trace, keeps accepted/rejected/conflict/retry/over-limit counters disjoint, filters stale/future/other-run events, and never persists or returns trace/use/receipt/nullifier/proof data. Signals are advisory and cannot alter acceptance, quota, or identity state.
+- `apps/api/src/modules/insights/ai-narrator.ts` provides optional server-only OpenAI Responses API commentary. It is disabled by default, sends only allowlisted aggregate counts/statuses, uses `store:false`, strict JSON output, an 8-second timeout, 32 KiB response cap, one in-flight request, and bounded in-memory caching/call limits. Provider failures preserve factual evidence as `UNAVAILABLE` and never expose provider bodies.
+- `apps/web/src/features/demo-lab/insights-panel.tsx` and `use-insights.ts` add independently polled, run-aware summary, signal, and optional-AI panels. Reset, stale run IDs, request errors, and unavailability hide old results. The browser sends no wallet, proof, identity, or telemetry to the insight route.
+- `docs/automated-insights.md` documents the data boundary, thresholds, configuration, limitations, and validation. `.env.example` and Compose include opt-in AI configuration without a key.
+
+Checks observed for this extension:
+
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- Unit, contract, and privacy projects passed: 23 files, 376 tests.
+- `pnpm test:integration` passed: 10 files, 39 tests.
+- `pnpm --filter @anonlimit/web build` passed; API image build passed.
+- `pnpm test:e2e` passed: 5 browser rehearsals, including insight reset and unavailable-state coverage.
+- `pnpm audit:privacy` passed with zero findings; `git diff --check` passed.
+- `pnpm format:check` still reports only the pre-existing untracked `apps/free-slots/src/quota-store.ts` formatting issue. No soak test was run, per user instruction.
+- Docker Compose services remain healthy; `http://localhost:5173` serves the rebuilt UI and `/v1/demo/insights` responds with local `rules-v1` analysis and `ai: DISABLED` under the current configuration.
+
 ## Next step
 
 Maintain the public release baseline. Future changes must rerun `pnpm check:release` and the privacy
-audit; use the concurrency soak when protocol, persistence, or runtime packaging changes.
+audit; use the concurrency soak when protocol, persistence, or runtime packaging changes. AI commentary
+requires an operator-supplied server key and model; no live paid model call has been made.
 
 ## Recent milestones
 

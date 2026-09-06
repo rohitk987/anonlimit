@@ -1,5 +1,7 @@
 # AnonLimit
 
+The Demo Lab includes automatic audit summaries and aggregate abuse signals, with optional AI explanations. See [automated insights](docs/automated-insights.md) for the data boundary, rules, API, and server configuration.
+
 **Limit the use. Leave the person unknown.**
 
 AnonLimit is a working bounded-use credential simulation. It issues one anonymous pass to a browser wallet, permits exactly three uses, recovers an exact retry without spending another use, and rejects a fourth use without storing a holder identity.

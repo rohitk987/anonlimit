@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { getApiEnv } from "@anonlimit/config/server";
+import { getApiEnv, getInsightsAiEnv } from "@anonlimit/config/server";
 import { createSimulatedIssuer } from "@anonlimit/crypto/issuer";
 import {
   createLookupProtection,
@@ -21,6 +21,7 @@ import { createEvidenceController } from "./modules/evidence/evidence-controller
 import { createEventStreamController } from "./modules/events/events-controller.js";
 import { createProtocolService } from "./modules/protocol/index.js";
 import { createDemoBoundaryController } from "./modules/demo/boundary-controller.js";
+import { createAiNarrator } from "./modules/insights/ai-narrator.js";
 
 interface PublicParameters {
   readonly provider: "SIMULATED_CAPABILITIES_V1";
@@ -93,6 +94,7 @@ async function main(): Promise<void> {
     policyVersion: DEFAULT_POLICY_VERSION,
   });
   const evidenceController = createEvidenceController({
+    aiNarrator: createAiNarrator(config.demoMode ? getInsightsAiEnv() : undefined),
     repository: database,
     actionClient: createActionSimulatorEvidenceClient({
       actionServiceUrl: config.actionServiceUrl,
