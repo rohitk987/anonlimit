@@ -280,11 +280,12 @@ Checks observed for this extension:
 
 ## Submission privacy audit — 2026-09-06
 
-- Public `main` is at `0fd6f97` before this audit, is not a fork, and is visible at [github.com/rohitk987/anonlimit](https://github.com/rohitk987/anonlimit). The latest hosted workflow passed all configured checks; the optional soak was skipped.
+- Public `main` is at `53dcfbd` after this audit, is not a fork, and is visible at [github.com/rohitk987/anonlimit](https://github.com/rohitk987/anonlimit). Hosted workflow `34022313841` passed all configured checks for this revision; the optional soak was skipped.
 - Reachable history contains 19 commits and no tracked `.env`, secret directory, private-key/certificate file, database dump, log, screenshot, archive, or browser-state artifact. The only environment file is the placeholder `.env.example`.
 - Checksum-verified Gitleaks `8.30.1` scanned all reachable commits with redaction. Its one alert was manually reviewed as a false positive in architecture prose; `.gitleaksignore` records only that exact fingerprint and why it is safe to ignore. A second credential-pattern scan found no provider-key or private-key markers.
 - The repository's GitHub secret-scanning alerts endpoint reports zero open alerts and push protection is enabled. Dependabot alert details are unavailable through the current API permission; no dependency alert state is claimed here.
 - Removed development-machine absolute paths from `docs/phase-0-kickoff.md` and aligned README/CONTRIBUTING soak instructions with the workflow's manual opt-in behavior.
+- The cleanup commit `53dcfbd` is published on both `main` and `codex/submission-readiness`; its author metadata uses the repository owner's GitHub noreply address for new history.
 - Existing published commit metadata uses the author identity configured when the project was developed. It is not application data or a credential, but removing it would require a history rewrite and force push; no such destructive rewrite was performed automatically.
 
 ## Next step
