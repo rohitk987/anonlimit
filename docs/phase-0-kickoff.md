@@ -98,7 +98,7 @@ The PATH adjustment applies only to the current shell and its child processes. T
 Start Docker through the verified Windows Explorer launch context when needed:
 
 ```powershell
-& 'D:\myonsite\scripts\start-docker-desktop.ps1'
+& '.\scripts\start-docker-desktop.ps1'
 ```
 
 The [startup helper](../scripts/start-docker-desktop.ps1) returns immediately when the server is healthy. Otherwise it asks the existing Explorer desktop to launch Docker hidden, then polls server readiness with individually bounded CLI probes. It does not reset data, modify Docker settings, or stop Docker services. Opening Docker Desktop from the Windows Start menu is also the intended normal interactive startup path.
@@ -120,10 +120,7 @@ A diagnostic socket created under the repository's ignored `.cache` directory cl
 
 The PostgreSQL check used `anonlimit-phase0-pg-20260905-0748`, with network disabled, no published ports, and database storage on temporary memory-backed storage. SQL confirmed server major version 17, wrote and read a temporary table, and rolled back. The container was stopped and its automatic removal was verified. The official image remains cached at digest `sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73`. Existing user containers were left running.
 
-Original runtime directories are preserved at:
-
-- `C:/Users/rohit/AppData/Local/Docker/run.phase0-backup-20260905-0735`
-- `C:/Users/rohit/AppData/Local/docker-secrets-engine.phase0-backup-20260905-0738`
+Original runtime-directory backups remain in Docker's local data directory on the development machine; their absolute paths are intentionally omitted from this public record.
 
 A pnpm diagnostic unexpectedly triggered dependency setup. Its generated `node_modules` and lockfile were quarantined under ignored `.cache/phase0-version-check-generated-20260905`; generated workspace settings were removed while preserving the two package-directory entries. This attempt did not pass the Phase 1 installation/build gate. Use the version commands above without `pnpm exec` for prerequisite checks.
 

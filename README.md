@@ -81,7 +81,7 @@ It performs this sequence:
 4. Check readiness, run `check:release`, run `audit:privacy`, and run the synchronized race soak.
 5. Stop containers and remove orphans in a final cleanup while preserving the PostgreSQL volume.
 
-The soak reads `GOLDEN_SOAK_RUNS`, accepts 1 through 100, and defaults to **100** when it is unset. CI intentionally overrides it to 10. To shorten a local rehearsal in PowerShell:
+The soak reads `GOLDEN_SOAK_RUNS`, accepts 1 through 100, and defaults to **100** when it is unset. Push and pull-request CI skips the soak; a manual workflow run can enable its ten-scenario version with the `run_soak` input. To shorten a local rehearsal in PowerShell:
 
 ```powershell
 $env:GOLDEN_SOAK_RUNS = "10"

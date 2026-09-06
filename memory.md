@@ -278,6 +278,15 @@ Checks observed for this extension:
 - [Hosted run `34020903971`](https://github.com/rohitk987/anonlimit/actions/runs/34020903971) passed at fix revision `39c7389`: Node/pnpm bootstrap, frozen install, cumulative Phase 9 quality gate, Docker build, issuer readability preflight, Compose cold start, API/web readiness, live role checks, boundary integration, privacy audit, Chromium installation, browser tests, and cleanup. The optional soak step was skipped. This continuity update changes only documentation after that successful run.
 - The pre-existing local free-slots work and lockfile edits remain separate. No soak was requested or run for this repair.
 
+## Submission privacy audit — 2026-09-06
+
+- Public `main` is at `0fd6f97` before this audit, is not a fork, and is visible at [github.com/rohitk987/anonlimit](https://github.com/rohitk987/anonlimit). The latest hosted workflow passed all configured checks; the optional soak was skipped.
+- Reachable history contains 19 commits and no tracked `.env`, secret directory, private-key/certificate file, database dump, log, screenshot, archive, or browser-state artifact. The only environment file is the placeholder `.env.example`.
+- Checksum-verified Gitleaks `8.30.1` scanned all reachable commits with redaction. Its one alert was manually reviewed as a false positive in architecture prose; `.gitleaksignore` records only that exact fingerprint and why it is safe to ignore. A second credential-pattern scan found no provider-key or private-key markers.
+- The repository's GitHub secret-scanning alerts endpoint reports zero open alerts and push protection is enabled. Dependabot alert details are unavailable through the current API permission; no dependency alert state is claimed here.
+- Removed development-machine absolute paths from `docs/phase-0-kickoff.md` and aligned README/CONTRIBUTING soak instructions with the workflow's manual opt-in behavior.
+- Existing published commit metadata uses the author identity configured when the project was developed. It is not application data or a credential, but removing it would require a history rewrite and force push; no such destructive rewrite was performed automatically.
+
 ## Next step
 
 Maintain the public release baseline. Future changes must rerun `pnpm check:release` and the privacy

@@ -57,7 +57,7 @@ pnpm check:release
 pnpm audit:privacy
 ```
 
-For release-sensitive changes, `pnpm release:rehearsal` validates Compose, builds the shared application image once, starts the stack with `--no-build`, waits for readiness, runs the full release gate, runs the privacy audit and synchronized race soak, and always cleans up containers and orphans. The soak uses `GOLDEN_SOAK_RUNS`, which defaults to 100 and accepts values from 1 through 100. CI explicitly sets it to 10.
+For release-sensitive changes, `pnpm release:rehearsal` validates Compose, builds the shared application image once, starts the stack with `--no-build`, waits for readiness, runs the full release gate, runs the privacy audit and synchronized race soak, and always cleans up containers and orphans. The soak uses `GOLDEN_SOAK_RUNS`, which defaults to 100 and accepts values from 1 through 100. Push and pull-request CI skips the soak; a manual workflow run can enable its ten-scenario version with the `run_soak` input.
 
 ## Open a pull request
 
