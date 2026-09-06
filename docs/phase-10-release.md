@@ -11,7 +11,8 @@ The public frontend now presents that work through an original AnonLimit interfa
 - API, Action Simulator, web, and worker health checks gate readiness. `scripts/wait-for-services.ts` adds explicit API `/health/ready` and web probes with bounded timeout and interval settings.
 - `scripts/run-release-soak.ts` repeats the synchronized twenty-copy third-use race. `GOLDEN_SOAK_RUNS` accepts integers from 1 through 100 and defaults to 100 when unset.
 - `scripts/run-release-rehearsal.ts` validates Compose, builds the shared application image once through the API service, stops the prior stack, starts every service with `--no-build --wait`, verifies readiness, runs the full release gate, runs the separate privacy audit, runs the configured soak, and cleans up in a `finally` path without deleting the database volume.
-- `.github/workflows/ci.yml` runs the frozen install, cumulative P0 and resilience checks, a single shared-image build, `--no-build` startup, live role and boundary checks, the privacy audit, Playwright, and ten release-race scenarios.
+- `.github/workflows/ci.yml` runs the frozen install, cumulative P0 and resilience checks, a single shared-image build, `--no-build` startup, live role and boundary checks, the privacy audit, and Playwright. The ten-scenario soak is opt-in through a manual workflow run with `run_soak` enabled; pushes and pull requests skip it.
+- CI installs Node.js 24 with automatic package-manager caching disabled before installing the pnpm version pinned in `package.json`. Cleanup runs only after Compose configuration validates, so an early setup failure does not trigger another failure from missing environment values. A failed or partially started stack is still cleaned up.
 - [Threat model and limitations](threat-model.md) documents trust boundaries, privacy assumptions, operational threats, and the work required to replace simulated cryptography in production.
 
 ## Reproduce the release
@@ -49,7 +50,7 @@ pnpm release:rehearsal
 Remove-Item Env:GOLDEN_SOAK_RUNS
 ```
 
-CI uses that 10-run override to fit its bounded job. Leave the variable unset for the default 100-run local release rehearsal.
+An explicitly requested CI soak uses that 10-run override to fit its bounded job. In GitHub Actions, choose **Phase 10 release and P0**, select **Run workflow**, and enable the optional soak input. It is disabled by default, including on pushes and pull requests. Leave the variable unset for the default 100-run local release rehearsal.
 
 ## Empty-database check
 

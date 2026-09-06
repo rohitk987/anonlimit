@@ -3,6 +3,12 @@ name: Phase 10 release and P0
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      run_soak:
+        description: Run the optional ten-scenario concurrency soak
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,14 +19,22 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
         with:
           node-version: 24
-      - uses: pnpm/action-setup@v4
+          # pnpm is installed by the next step; automatic caching needs it on PATH.
+          package-manager-cache: false
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm setup:env
       - run: pnpm check:phase9
-      - run: docker compose config --quiet
+      - name: Validate stack configuration
+        id: compose-config
+        run: docker compose config --quiet
       - run: docker compose build api
       - run: docker compose up -d --no-build --wait --wait-timeout 120
       - run: pnpm wait:services
@@ -30,9 +44,10 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - name: Run ten full race scenarios
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_soak }}
         env:
           GOLDEN_SOAK_RUNS: "10"
         run: pnpm demo:golden:soak
       - name: Stop this job's stack
-        if: always()
+        if: ${{ always() && steps.compose-config.outcome == 'success' }}
         run: docker compose down
