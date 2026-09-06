@@ -116,7 +116,7 @@ pnpm release:rehearsal
 Remove-Item Env:GOLDEN_SOAK_RUNS
 ```
 
-CI uses 10 repetitions. The default local rehearsal uses the 100-run release soak. See the [Phase 10 release record](phase-10-release.md) for the release evidence and [threat-model.md](threat-model.md) for the security and privacy boundary.
+CI skips the soak on pushes and pull requests. A manual workflow run can opt into 10 repetitions with `run_soak`. The default local rehearsal uses the 100-run release soak. See the [Phase 10 release record](phase-10-release.md) for the release evidence and [threat-model.md](threat-model.md) for the security and privacy boundary.
 
 ## Troubleshooting
 
@@ -126,3 +126,13 @@ CI uses 10 repetitions. The default local rehearsal uses the 100-run release soa
 - **The wallet belongs to an earlier run:** select **Reset evaluation**. The browser clears its local wallet only after the server reset succeeds.
 - **Browser tests cannot launch:** rerun `pnpm exec playwright install chromium`.
 - **Install or checks use the wrong runtime:** switch to Node 24 and pnpm 11.19.0, then rerun the command.
+
+On Linux, the generated issuer files have private `0600` permissions. If the host user's UID differs from the image's `node` user, the API cannot read the bind-mounted files and exits with `STARTUP_FAILED`. After building the image, assign these two files to its runtime UID and restart:
+
+```bash
+runtime_uid="$(docker run --rm --entrypoint id anonlimit-foundation:local -u)"
+sudo chown "$runtime_uid" secrets/issuer-simulator.key secrets/issuer-public.json
+docker compose up -d --no-build --wait --wait-timeout 120
+```
+
+This keeps the files private and the API running as a non-root user. The host user may need `sudo` to read the files after ownership changes. GitHub Actions performs this ownership adjustment and a content-free readability check automatically.

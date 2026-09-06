@@ -36,6 +36,17 @@ jobs:
         id: compose-config
         run: docker compose config --quiet
       - run: docker compose build api
+      - name: Grant the container user access to issuer files
+        run: |
+          runtime_uid="$(docker run --rm --entrypoint id anonlimit-foundation:local -u)"
+          sudo chown "$runtime_uid" secrets/issuer-simulator.key secrets/issuer-public.json
+          docker compose run --rm --no-deps api node -e '
+            const { accessSync, constants } = require("node:fs");
+            for (const name of ["ISSUER_PRIVATE_KEY_PATH", "ISSUER_PUBLIC_PARAMETERS_PATH"]) {
+              accessSync(process.env[name], constants.R_OK);
+            }
+            console.log("Issuer files are readable by the container user.");
+          '
       - run: docker compose up -d --no-build --wait --wait-timeout 120
       - run: pnpm wait:services
       - run: pnpm test:integration:live
